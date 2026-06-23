@@ -142,7 +142,8 @@ namespace TVTest
 			ICON_4K,
 			ICON_8K,
 			ICON_22_2CH,
-			ICON_LAST = ICON_22_2CH
+			ICON_HDR,
+			ICON_LAST = ICON_HDR
 		};
 
 		static UINT IconFlag(int Icon) { return 1 << Icon; }

@@ -1039,6 +1039,12 @@ unsigned int CEpgIcons::GetEventIcons(const LibISDB::EventInfo *pEventInfo)
 			ShowIcons |= IconFlag(ICON_FREE);
 	}
 
+	// ARIB STD-B62 の HDR 外字は HD/SD のような component_descriptor の構造化情報を
+	// 持たないため、"[HDR]" のようなテキスト表記(dantto4k 等の変換ツールが出力する)
+	// で検出するしかない。
+	if (pEventInfo->EventName.find(L"[HDR]") != LibISDB::String::npos)
+		ShowIcons |= IconFlag(ICON_HDR);
+
 	return ShowIcons;
 }
 
