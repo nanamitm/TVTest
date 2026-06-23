@@ -42,11 +42,14 @@ VideoType GetVideoType(BYTE ComponentType)
 		case 0xD:
 		case 0xF:
 			return VideoType::SD;
-		case 0x9:
 		case 0xB:
 		case 0xC:
 		case 0xE:
 			return VideoType::HD;
+		case 0x9:
+			return VideoType::UHD4K;
+		case 0x8:
+			return VideoType::UHD8K;
 		}
 	}
 	return VideoType::Unknown;
@@ -985,10 +988,22 @@ unsigned int CEpgIcons::GetEventIcons(const LibISDB::EventInfo *pEventInfo)
 
 	if (!pEventInfo->VideoList.empty()) {
 		const EpgUtil::VideoType Video = EpgUtil::GetVideoType(pEventInfo->VideoList[0].ComponentType);
-		if (Video == EpgUtil::VideoType::HD)
+		switch (Video) {
+		case EpgUtil::VideoType::HD:
 			ShowIcons |= IconFlag(ICON_HD);
-		else if (Video == EpgUtil::VideoType::SD)
+			break;
+		case EpgUtil::VideoType::SD:
 			ShowIcons |= IconFlag(ICON_SD);
+			break;
+		case EpgUtil::VideoType::UHD4K:
+			ShowIcons |= IconFlag(ICON_4K);
+			break;
+		case EpgUtil::VideoType::UHD8K:
+			ShowIcons |= IconFlag(ICON_8K);
+			break;
+		default:
+			break;
+		}
 	}
 
 	if (!pEventInfo->AudioList.empty()) {
@@ -1003,6 +1018,8 @@ unsigned int CEpgIcons::GetEventIcons(const LibISDB::EventInfo *pEventInfo)
 		} else {
 			if (pAudioInfo->ComponentType == 0x09)
 				ShowIcons |= IconFlag(ICON_5_1CH);
+			else if (pAudioInfo->ComponentType == 0x11)
+				ShowIcons |= IconFlag(ICON_22_2CH);
 			if (pEventInfo->AudioList.size() >= 2
 					&& pEventInfo->AudioList[0].LanguageCode != 0
 					&& pEventInfo->AudioList[1].LanguageCode != 0) {

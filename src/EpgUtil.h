@@ -39,6 +39,8 @@ namespace TVTest
 			Unknown,
 			HD,
 			SD,
+			UHD4K,
+			UHD8K,
 		};
 
 		VideoType GetVideoType(BYTE ComponentType);
@@ -137,7 +139,10 @@ namespace TVTest
 			ICON_SUB,
 			ICON_FREE,
 			ICON_PAY,
-			ICON_LAST = ICON_PAY
+			ICON_4K,
+			ICON_8K,
+			ICON_22_2CH,
+			ICON_LAST = ICON_22_2CH
 		};
 
 		static UINT IconFlag(int Icon) { return 1 << Icon; }
