@@ -25,6 +25,7 @@
 #include <algorithm>
 #include <utility>
 #include "Common/DebugDef.h"
+#include "AudioDebugLog.h"
 
 
 namespace TVTest
@@ -248,17 +249,32 @@ bool CAudioManager::OnServiceUpdated()
 	AudioComponentList ComponentList;
 
 	ComponentList.resize(StreamCount);
-	for (int i = 0; i < StreamCount; i++)
-		ComponentList[i] = MakeID(i, pAnalyzer->GetAudioComponentTag(ServiceIndex, i));
+	for (int i = 0; i < StreamCount; i++) {
+		const uint8_t ComponentTag = pAnalyzer->GetAudioComponentTag(ServiceIndex, i);
+		const uint16_t PID = pAnalyzer->GetAudioESPID(ServiceIndex, i);
+		const uint8_t StreamType = pAnalyzer->GetAudioStreamType(ServiceIndex, i);
+
+		ComponentList[i] = MakeID(i, ComponentTag);
+		AudioDebugLog(
+			L"AudioManager::OnServiceUpdated: Stream[%d] PID=0x%04x ComponentTag=0x%02x StreamType=0x%02x ID=%d",
+			i, PID, ComponentTag, StreamType, ComponentList[i]);
+	}
 
 	const WORD TransportStreamID = Engine.GetTransportStreamID();
 	const WORD ServiceID = Engine.GetServiceID();
 	const bool fServiceChanged =
 		TransportStreamID != m_CurTransportStreamID || ServiceID != m_CurServiceID;
 
+	AudioDebugLog(
+		L"AudioManager::OnServiceUpdated: StreamCount=%d ServiceIndex=%d ComponentListEqual=%d fServiceChanged=%d TSID=%u SID=%u",
+		StreamCount, ServiceIndex, m_AudioComponentList == ComponentList, fServiceChanged,
+		TransportStreamID, ServiceID);
+
 	if (m_AudioComponentList == ComponentList) {
-		if (!fServiceChanged)
+		if (!fServiceChanged) {
+			AudioDebugLog(L"AudioManager::OnServiceUpdated: early return (no change), MakeAudioList() skipped");
 			return false;
+		}
 	} else {
 		m_AudioComponentList = std::move(ComponentList);
 		MakeAudioList();
@@ -315,6 +331,7 @@ bool CAudioManager::OnEventUpdated()
 		LibISDB::AnalyzerFilter::EventAudioList EITAudioList;
 
 		pAnalyzer->GetEventAudioList(Engine.GetServiceIndex(), &EITAudioList);
+		AudioDebugLog(L"AudioManager::OnEventUpdated: ServiceIndex=%d EITAudioList.size()=%zu", Engine.GetServiceIndex(), EITAudioList.size());
 
 		for (auto const &EventAudio : EITAudioList) {
 			AudioInfo Audio1;
@@ -386,6 +403,10 @@ bool CAudioManager::OnEventUpdated()
 		m_CurEventID = EventID;
 	}
 
+	AudioDebugLog(
+		L"AudioManager::OnEventUpdated: EventID=%u EventAudioListChanged=%d",
+		EventID, m_EventAudioList != EventAudioList);
+
 	if (m_EventAudioList != EventAudioList) {
 		m_EventAudioList = std::move(EventAudioList);
 		MakeAudioList();
@@ -435,6 +456,23 @@ void CAudioManager::MakeAudioList()
 
 			m_AudioList.push_back(Info);
 		}
+	}
+
+	AudioDebugLog(
+		L"AudioManager::MakeAudioList: m_AudioComponentList.size()=%zu m_EventAudioList.size()=%zu -> m_AudioList.size()=%zu",
+		m_AudioComponentList.size(), m_EventAudioList.size(), m_AudioList.size());
+	for (size_t i = 0; i < m_AudioList.size(); i++) {
+		const AudioInfo &Info = m_AudioList[i];
+		AudioDebugLog(
+			L"  AudioList[%zu]: ID=%d ComponentTag=0x%02x DualMono=%d ComponentType=0x%02x Language=0x%08x Language2=0x%08x Text=%ls",
+			i,
+			Info.ID,
+			Info.ComponentTag,
+			static_cast<int>(Info.DualMono),
+			Info.ComponentType,
+			Info.Language,
+			Info.Language2,
+			Info.Text.c_str());
 	}
 }
 

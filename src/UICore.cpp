@@ -22,6 +22,7 @@
 #include <algorithm>
 #include "TVTest.h"
 #include "AppMain.h"
+#include "AudioDebugLog.h"
 #include "DPIUtil.h"
 #include "resource.h"
 #include "Common/DebugDef.h"
@@ -410,11 +411,19 @@ bool CUICore::SetAudioStream(int Stream)
 	else
 		ComponentTag = LibISDB::COMPONENT_TAG_INVALID;
 
+	AudioDebugLog(
+		L"CUICore::SetAudioStream: Request Stream=%d ServiceIndex=%d ComponentTag=%u NumStreams=%d",
+		Stream, m_App.CoreEngine.GetServiceIndex(), ComponentTag, GetNumAudioStreams());
+
 	CAudioManager::AudioSelectInfo SelInfo;
 	if (!m_App.AudioManager.GetAudioSelectInfoByID(
 				CAudioManager::MakeID(Stream, ComponentTag),
-				&SelInfo))
+				&SelInfo)) {
+		AudioDebugLog(
+			L"CUICore::SetAudioStream: GetAudioSelectInfoByID failed Stream=%d ComponentTag=%u",
+			Stream, ComponentTag);
 		return false;
+	}
 
 	return SelectAudio(SelInfo);
 }
@@ -467,6 +476,10 @@ bool CUICore::SelectAudio(const CAudioManager::AudioSelectInfo &Info, bool fUpda
 		AudioIndex = CAudioManager::IDToStreamIndex(Info.ID);
 	}
 
+	AudioDebugLog(
+		L"CUICore::SelectAudio: ID=%d ComponentTag=%u AudioIndex=%d DualMono=%d fUpdate=%d",
+		Info.ID, ComponentTag, AudioIndex, static_cast<int>(Info.DualMono), fUpdate);
+
 	if (AudioIndex >= 0) {
 		LibISDB::DirectShow::AudioDecoderFilter::DualMonoMode DualMonoMode =
 			LibISDB::DirectShow::AudioDecoderFilter::DualMonoMode::Invalid;
@@ -498,6 +511,9 @@ bool CUICore::SelectAudio(const CAudioManager::AudioSelectInfo &Info, bool fUpda
 bool CUICore::SelectAudioStream(int Stream)
 {
 	if (Stream != GetAudioStream()) {
+		AudioDebugLog(
+			L"CUICore::SelectAudioStream: Stream=%d Current=%d",
+			Stream, GetAudioStream());
 		if (!m_App.CoreEngine.SetAudioStream(Stream))
 			return false;
 		m_App.AppEventManager.OnAudioStreamChanged(Stream);

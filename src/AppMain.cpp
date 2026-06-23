@@ -27,6 +27,7 @@
 #include "TVTestVersion.h"
 #include "resource.h"
 #include "Common/DebugDef.h"
+#include "AudioDebugLog.h"
 
 
 namespace TVTest
@@ -1576,6 +1577,7 @@ CAppMain::CEngineEventListener::CEngineEventListener(CAppMain &App)
 
 void CAppMain::CEngineEventListener::OnServiceChanged(uint16_t ServiceID)
 {
+	AudioDebugLog(L"OnServiceChanged: ServiceID=%u", ServiceID);
 	m_App.MainWindow.PostMessage(WM_APP_SERVICECHANGED, ServiceID, 0);
 	if (m_App.AudioManager.OnServiceUpdated())
 		m_App.MainWindow.PostMessage(WM_APP_AUDIOLISTCHANGED, 0, 0);
@@ -1589,6 +1591,7 @@ void CAppMain::CEngineEventListener::OnServiceChanged(uint16_t ServiceID)
 void CAppMain::CEngineEventListener::OnPATUpdated(
 	LibISDB::AnalyzerFilter *pAnalyzer, bool StreamChanged)
 {
+	AudioDebugLog(L"OnPATUpdated: StreamChanged=%d", StreamChanged);
 	OnServiceUpdated(pAnalyzer, true, StreamChanged);
 	if (m_App.AudioManager.OnServiceUpdated())
 		m_App.MainWindow.PostMessage(WM_APP_AUDIOLISTCHANGED, 0, 0);
@@ -1596,11 +1599,13 @@ void CAppMain::CEngineEventListener::OnPATUpdated(
 
 void CAppMain::CEngineEventListener::OnPMTUpdated(LibISDB::AnalyzerFilter *pAnalyzer, uint16_t ServiceID)
 {
+	AudioDebugLog(L"OnPMTUpdated: ServiceID=%u", ServiceID);
 	OnServiceInfoUpdated(pAnalyzer);
 }
 
 void CAppMain::CEngineEventListener::OnSDTUpdated(LibISDB::AnalyzerFilter *pAnalyzer)
 {
+	AudioDebugLog(L"OnSDTUpdated");
 	// サービスとロゴを関連付ける
 	LibISDB::AnalyzerFilter::SDTServiceList ServiceList;
 	if (pAnalyzer->GetSDTServiceList(&ServiceList)) {
@@ -1636,6 +1641,7 @@ void CAppMain::CEngineEventListener::OnVideoSizeChanged(LibISDB::ViewerFilter *p
 void CAppMain::CEngineEventListener::OnEventChanged(LibISDB::AnalyzerFilter *pAnalyzer, uint16_t EventID)
 {
 	TRACE(TEXT("CEngineEventListener::OnEventChanged() : event_id {:#04x}\n"), EventID);
+	AudioDebugLog(L"OnEventChanged: EventID=%u", EventID);
 	if (EventID != LibISDB::EVENT_ID_INVALID) {
 		m_App.CoreEngine.SetAsyncStatusUpdatedFlag(CCoreEngine::StatusFlag::EventID);
 		if (m_App.AudioManager.OnEventUpdated())
@@ -1645,6 +1651,7 @@ void CAppMain::CEngineEventListener::OnEventChanged(LibISDB::AnalyzerFilter *pAn
 
 void CAppMain::CEngineEventListener::OnEventUpdated(LibISDB::AnalyzerFilter *pAnalyzer)
 {
+	AudioDebugLog(L"OnEventUpdated");
 	m_App.CoreEngine.SetAsyncStatusUpdatedFlag(CCoreEngine::StatusFlag::EventInfo);
 	if (m_App.AudioManager.OnEventUpdated())
 		m_App.MainWindow.PostMessage(WM_APP_AUDIOLISTCHANGED, 0, 0);

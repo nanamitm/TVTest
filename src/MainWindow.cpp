@@ -33,6 +33,7 @@
 #include "DarkMode.h"
 #include "resource.h"
 #include "Common/DebugDef.h"
+#include "AudioDebugLog.h"
 
 #pragma comment(lib,"imm32.lib") // for ImmAssociateContext(Ex)
 
@@ -3170,6 +3171,9 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 		const LibISDB::DirectShow::AudioDecoderFilter::DualMonoMode CurDualMonoMode = m_pCore->GetDualMonoMode();
 		bool fDualMono = false;
 
+		AudioDebugLog(L"OnInitMenuPopup(AUDIO): GetAudioList()=%d AudioList.size()=%zu",
+			m_App.AudioManager.GetAudioList(&AudioList), AudioList.size());
+
 		if (m_App.AudioManager.GetAudioList(&AudioList) && !AudioList.empty()) {
 			const auto GetAudioInfoText = [](
 					const CAudioManager::AudioInfo & Info, int StreamNumber,
@@ -3211,7 +3215,23 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 			LibISDB::AnalyzerFilter::EventComponentGroupList GroupList;
 			int Sel = -1;
 
-			if (pAnalyzer->GetEventComponentGroupList(ServiceIndex, &GroupList)
+			const bool fGotGroupList = pAnalyzer->GetEventComponentGroupList(ServiceIndex, &GroupList);
+			AudioDebugLog(L"OnInitMenuPopup(AUDIO): GetEventComponentGroupList()=%d GroupList.size()=%zu pAnalyzer=%p",
+				fGotGroupList, GroupList.size(), pAnalyzer);
+			for (size_t gi = 0; gi < GroupList.size(); gi++) {
+				const auto &g = GroupList[gi];
+				AudioDebugLog(L"  Group[%zu]: ComponentGroupID=%d NumOfCAUnit=%d", gi, g.ComponentGroupID, g.NumOfCAUnit);
+				for (int j = 0; j < g.NumOfCAUnit; j++) {
+					for (int k = 0; k < g.CAUnitList[j].NumOfComponent; k++) {
+						AudioDebugLog(L"    CAUnit[%d].ComponentTag[%d]=%u", j, k, g.CAUnitList[j].ComponentTag[k]);
+					}
+				}
+			}
+			for (size_t ai = 0; ai < AudioList.size(); ai++) {
+				AudioDebugLog(L"  AudioList[%zu]: ID=%d ComponentTag=%u", ai, AudioList[ai].ID, AudioList[ai].ComponentTag);
+			}
+
+			if (fGotGroupList
 					&& !GroupList.empty()) {
 				// マルチビューTV
 				const int NumGroup = static_cast<int>(GroupList.size());
@@ -3325,6 +3345,8 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 					CM_AUDIO_FIRST + static_cast<int>(AudioList.size()) - 1,
 					CM_AUDIO_FIRST + Sel);
 			}
+
+			AudioDebugLog(L"OnInitMenuPopup(AUDIO): final Menu.GetItemCount()=%d Sel=%d", Menu.GetItemCount(), Sel);
 		}
 
 		const HINSTANCE hinstRes = m_App.GetResourceInstance();
