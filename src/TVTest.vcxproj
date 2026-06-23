@@ -226,7 +226,7 @@
     </ResourceCompile>
     <Link>
       <AdditionalDependencies>LibISDB.lib;LibISDBWindows.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)LibISDB\Projects\$(Platform)\$(Configuration)\;$(IntDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)LibISDB\Projects\$(Platform)\$(Configuration)\;$(IntDir);C:\vcpkg\packages\ffmpeg_x64-windows\debug\lib\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EnableUAC>false</EnableUAC>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <IgnoreSpecificDefaultLibraries>%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
@@ -249,6 +249,11 @@
     <PreBuildEvent>
       <Command>call "$(ProjectDir)TVTestVersionHashGen.bat"</Command>
     </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>copy /Y "C:\vcpkg\packages\ffmpeg_x64-windows\debug\bin\avcodec-62.dll" "$(OutDir)"
+copy /Y "C:\vcpkg\packages\ffmpeg_x64-windows\debug\bin\avutil-60.dll" "$(OutDir)"
+copy /Y "C:\vcpkg\packages\ffmpeg_x64-windows\debug\bin\swresample-6.dll" "$(OutDir)"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Midl>
@@ -480,7 +485,7 @@ copy /Y "C:\vcpkg\packages\ffmpeg_x64-windows\bin\swresample-6.dll" "$(OutDir)"<
     </ResourceCompile>
     <Link>
       <AdditionalDependencies>LibISDB.lib;LibISDBWindows.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)LibISDB\Projects\$(Platform)\$(Configuration)\;$(IntDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(SolutionDir)LibISDB\Projects\$(Platform)\$(Configuration)\;$(IntDir);C:\vcpkg\packages\ffmpeg_x64-windows\lib\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EnableUAC>false</EnableUAC>
       <DelayLoadDLLs>evr.dll;mf.dll;mfplat.dll;d3d9.dll;dxva2.dll;%(DelayLoadDLLs)</DelayLoadDLLs>
       <GenerateDebugInformation>false</GenerateDebugInformation>
@@ -506,6 +511,11 @@ copy /Y "C:\vcpkg\packages\ffmpeg_x64-windows\bin\swresample-6.dll" "$(OutDir)"<
     <PreBuildEvent>
       <Command>call "$(ProjectDir)TVTestVersionHashGen.bat"</Command>
     </PreBuildEvent>
+    <PostBuildEvent>
+      <Command>copy /Y "C:\vcpkg\packages\ffmpeg_x64-windows\bin\avcodec-62.dll" "$(OutDir)"
+copy /Y "C:\vcpkg\packages\ffmpeg_x64-windows\bin\avutil-60.dll" "$(OutDir)"
+copy /Y "C:\vcpkg\packages\ffmpeg_x64-windows\bin\swresample-6.dll" "$(OutDir)"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Accelerator.cpp" />
