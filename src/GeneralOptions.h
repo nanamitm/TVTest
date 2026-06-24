@@ -63,6 +63,7 @@ namespace TVTest
 		bool GetNoScreenSaver() const { return m_fNoScreenSaver; }
 		bool GetNoMonitorLowPower() const { return m_fNoMonitorLowPower; }
 		bool GetNoMonitorLowPowerActiveOnly() const { return m_fNoMonitorLowPowerActiveOnly; }
+		bool GetPropertyPageDarkMode() const { return m_fPropertyPageDarkMode; }
 
 	private:
 	// CBasicDialog
@@ -85,6 +86,7 @@ namespace TVTest
 		bool m_fNoScreenSaver = false;
 		bool m_fNoMonitorLowPower = false;
 		bool m_fNoMonitorLowPowerActiveOnly = false;
+		bool m_fPropertyPageDarkMode = false;
 	};
 
 } // namespace TVTest

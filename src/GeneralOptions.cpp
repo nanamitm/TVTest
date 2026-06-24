@@ -82,6 +82,7 @@ bool CGeneralOptions::ReadSettings(CSettings &Settings)
 	Settings.Read(TEXT("NoScreenSaver"), &m_fNoScreenSaver);
 	Settings.Read(TEXT("NoMonitorLowPower"), &m_fNoMonitorLowPower);
 	Settings.Read(TEXT("NoMonitorLowPowerActiveOnly"), &m_fNoMonitorLowPowerActiveOnly);
+	Settings.Read(TEXT("PropertyPageDarkMode"), &m_fPropertyPageDarkMode);
 
 	return true;
 }
@@ -100,6 +101,7 @@ bool CGeneralOptions::WriteSettings(CSettings &Settings)
 	Settings.Write(TEXT("NoScreenSaver"), m_fNoScreenSaver);
 	Settings.Write(TEXT("NoMonitorLowPower"), m_fNoMonitorLowPower);
 	Settings.Write(TEXT("NoMonitorLowPowerActiveOnly"), m_fNoMonitorLowPowerActiveOnly);
+	Settings.Write(TEXT("PropertyPageDarkMode"), m_fPropertyPageDarkMode);
 
 	return true;
 }
@@ -218,6 +220,8 @@ INT_PTR CGeneralOptions::DlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 			DlgCheckBox_Check(hDlg, IDC_OPTIONS_NOMONITORLOWPOWER, m_fNoMonitorLowPower);
 			DlgCheckBox_Check(hDlg, IDC_OPTIONS_NOMONITORLOWPOWERACTIVEONLY, m_fNoMonitorLowPowerActiveOnly);
 			EnableDlgItem(hDlg, IDC_OPTIONS_NOMONITORLOWPOWERACTIVEONLY, m_fNoMonitorLowPower);
+
+			DlgCheckBox_Check(hDlg, IDC_OPTIONS_PROPERTYPAGEDARKMODE, m_fPropertyPageDarkMode);
 
 			AddControls({
 				{IDC_OPTIONS_DRIVERDIRECTORY,        AlignFlag::Horz},
@@ -357,6 +361,8 @@ INT_PTR CGeneralOptions::DlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPa
 					DlgCheckBox_IsChecked(hDlg, IDC_OPTIONS_NOMONITORLOWPOWER);
 				m_fNoMonitorLowPowerActiveOnly =
 					DlgCheckBox_IsChecked(hDlg, IDC_OPTIONS_NOMONITORLOWPOWERACTIVEONLY);
+				m_fPropertyPageDarkMode =
+					DlgCheckBox_IsChecked(hDlg, IDC_OPTIONS_PROPERTYPAGEDARKMODE);
 				CAppMain &App = GetAppClass();
 				App.UICore.PreventDisplaySave(App.UICore.IsViewerEnabled());
 
