@@ -20,6 +20,7 @@
 
 #include "stdafx.h"
 #include "TVTest.h"
+#include "AppMain.h"
 #include "ComUtility.h"
 #include "Dialog.h"
 #include "DialogUtil.h"
@@ -273,6 +274,21 @@ STDMETHODIMP CPropertyPageSite::GetLocaleID(LCID *pLocaleID)
 
 
 
+// [Settings] PropertyPageDarkMode=1 をTVTest.iniに書くと、フィルタの
+// プロパティページを開く際のTVTest側フレーム(ボタンやタブ部分)にも
+// ダークモードを適用する。ページの内容自体はフィルタ側の描画なので
+// 対象外。デフォルトは無効(従来通り常にライト)。
+static bool IsPropertyPageDarkModeEnabled()
+{
+	static const bool fEnabled =
+		::GetPrivateProfileInt(
+			TEXT("Settings"), TEXT("PropertyPageDarkMode"), 0,
+			GetAppClass().GetIniFileName()) != 0;
+
+	return fEnabled;
+}
+
+
 class CPropertyPageFrame
 	: public CBasicDialog
 {
@@ -304,7 +320,7 @@ private:
 CPropertyPageFrame::CPropertyPageFrame(IPropertyPage **ppPropPages, int NumPages, CPropertyPageSite *pPageSite)
 	: m_pPageSite(pPageSite)
 {
-	m_fDisableDarkMode = true;
+	m_fDisableDarkMode = !IsPropertyPageDarkModeEnabled();
 
 	m_PageList.reserve(NumPages);
 
