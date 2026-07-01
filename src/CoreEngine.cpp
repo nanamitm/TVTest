@@ -810,6 +810,7 @@ bool CCoreEngine::SetMinTimerResolution(bool fMin)
 
 void CCoreEngine::OnServiceChanged(uint16_t ServiceID)
 {
+	ViewerEngine::OnServiceChanged(ServiceID);
 	m_EventListenerList.CallEventListener(&CCoreEngine::EventListener::OnServiceChanged, ServiceID);
 }
 
