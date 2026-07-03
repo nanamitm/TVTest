@@ -1818,14 +1818,14 @@ INT_PTR CChannelScan::CScanSettingsDialog::DlgProc(
 				m_pChannelScan->m_SignalLevelThreshold);
 			::SetDlgItemText(hDlg, IDC_CHANNELSCANSETTINGS_SIGNALLEVELTHRESHOLD, szText);
 
-			for (int i = 1; i <= 10; i++) {
+			for (int i = 1; i <= 30; i++) {
 				StringFormat(szText, TEXT("{} 秒"), i);
 				DlgComboBox_AddString(hDlg, IDC_CHANNELSCANSETTINGS_SCANWAIT, szText);
 			}
 			DlgComboBox_SetCurSel(
 				hDlg, IDC_CHANNELSCANSETTINGS_SCANWAIT,
 				m_pChannelScan->m_ScanWait / 1000 - 1);
-			for (int i = 0; i <= 10; i++) {
+			for (int i = 0; i <= 30; i++) {
 				StringFormat(szText, TEXT("{} 秒"), i);
 				DlgComboBox_AddString(hDlg, IDC_CHANNELSCANSETTINGS_RETRYCOUNT, szText);
 			}

@@ -99,6 +99,8 @@ public:
 	void SetFirstChannelSetDelay(DWORD Delay) { m_Options.FirstChannelSetDelay = Delay; }
 	DWORD GetMinChannelChangeInterval() const { return m_Options.MinChannelChangeInterval; }
 	void SetMinChannelChangeInterval(DWORD Interval) { m_Options.MinChannelChangeInterval = Interval; }
+	DWORD GetRequestTimeout() const { return m_Options.RequestTimeout; }
+	void SetRequestTimeout(DWORD Timeout) { m_Options.RequestTimeout = Timeout; }
 };
 
 
@@ -263,6 +265,9 @@ bool CDriverOptions::ReadSettings(CSettings &Settings)
 				StringFormat(szName, TEXT("Driver{}_MinChChangeInterval"), i);
 				if (Settings.Read(szName, &Value))
 					pSettings->SetMinChannelChangeInterval(Value);
+				StringFormat(szName, TEXT("Driver{}_RequestTimeout"), i);
+				if (Settings.Read(szName, &Value))
+					pSettings->SetRequestTimeout(Value);
 				StringFormat(szName, TEXT("Driver{}_LastSpace"), i);
 				if (Settings.Read(szName, &Value))
 					pSettings->m_LastSpace = Value;
@@ -327,6 +332,8 @@ bool CDriverOptions::WriteSettings(CSettings &Settings)
 		Settings.Write(szName, static_cast<unsigned int>(pSettings->GetFirstChannelSetDelay()));
 		StringFormat(szName, TEXT("Driver{}_MinChChangeInterval"), i);
 		Settings.Write(szName, static_cast<unsigned int>(pSettings->GetMinChannelChangeInterval()));
+		StringFormat(szName, TEXT("Driver{}_RequestTimeout"), i);
+		Settings.Write(szName, static_cast<unsigned int>(pSettings->GetRequestTimeout()));
 		StringFormat(szName, TEXT("Driver{}_LastSpace"), i);
 		Settings.Write(szName, pSettings->m_LastSpace);
 		StringFormat(szName, TEXT("Driver{}_LastChannel"), i);
@@ -590,9 +597,21 @@ void CDriverOptions::InitDlgItem(int Driver)
 			0, LibISDB::BonDriverSourceFilter::CHANNEL_CHANGE_INTERVAL_MAX);
 		StringFormat(szText, TEXT("ms (0～{})"), LibISDB::BonDriverSourceFilter::CHANNEL_CHANGE_INTERVAL_MAX);
 		::SetDlgItemText(m_hDlg, IDC_DRIVEROPTIONS_MINCHANNELCHANGEINTERVAL_UNIT, szText);
+
+		::SetDlgItemInt(
+			m_hDlg, IDC_DRIVEROPTIONS_REQUESTTIMEOUT,
+			pSettings->GetRequestTimeout(), FALSE);
+		DlgUpDown_SetRange(
+			m_hDlg, IDC_DRIVEROPTIONS_REQUESTTIMEOUT_SPIN,
+			LibISDB::BonDriverSourceFilter::REQUEST_TIMEOUT_MIN, LibISDB::BonDriverSourceFilter::REQUEST_TIMEOUT_MAX);
+		StringFormat(
+			szText, TEXT("ms ({}～{})"),
+			LibISDB::BonDriverSourceFilter::REQUEST_TIMEOUT_MIN, LibISDB::BonDriverSourceFilter::REQUEST_TIMEOUT_MAX);
+		::SetDlgItemText(m_hDlg, IDC_DRIVEROPTIONS_REQUESTTIMEOUT_UNIT, szText);
 	} else {
 		::SetDlgItemText(m_hDlg, IDC_DRIVEROPTIONS_FIRSTCHANNELSETDELAY, TEXT(""));
 		::SetDlgItemText(m_hDlg, IDC_DRIVEROPTIONS_MINCHANNELCHANGEINTERVAL, TEXT(""));
+		::SetDlgItemText(m_hDlg, IDC_DRIVEROPTIONS_REQUESTTIMEOUT, TEXT(""));
 	}
 }
 
@@ -851,6 +870,19 @@ INT_PTR CDriverOptions::DlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPar
 					const DWORD Interval = ::GetDlgItemInt(hDlg, IDC_DRIVEROPTIONS_MINCHANNELCHANGEINTERVAL, nullptr, FALSE);
 					if (Interval <= LibISDB::BonDriverSourceFilter::CHANNEL_CHANGE_INTERVAL_MAX)
 						pSettings->SetMinChannelChangeInterval(Interval);
+				}
+			}
+			return TRUE;
+
+		case IDC_DRIVEROPTIONS_REQUESTTIMEOUT:
+			if (HIWORD(wParam) == EN_CHANGE) {
+				CDriverSettings *pSettings = GetCurSelDriverSettings();
+
+				if (pSettings != nullptr) {
+					const DWORD Timeout = ::GetDlgItemInt(hDlg, IDC_DRIVEROPTIONS_REQUESTTIMEOUT, nullptr, FALSE);
+					if (Timeout >= LibISDB::BonDriverSourceFilter::REQUEST_TIMEOUT_MIN
+							&& Timeout <= LibISDB::BonDriverSourceFilter::REQUEST_TIMEOUT_MAX)
+						pSettings->SetRequestTimeout(Timeout);
 				}
 			}
 			return TRUE;

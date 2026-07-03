@@ -1135,6 +1135,7 @@ void CAppCore::ApplyBonDriverOptions()
 		pSourceFilter->SetPurgeStreamOnChannelChange(Options.fPurgeStreamOnChannelChange);
 		pSourceFilter->SetFirstChannelSetDelay(Options.FirstChannelSetDelay);
 		pSourceFilter->SetMinChannelChangeInterval(Options.MinChannelChangeInterval);
+		pSourceFilter->SetRequestTimeout(Options.RequestTimeout);
 	}
 
 	LibISDB::ViewerFilter *pViewerFilter =

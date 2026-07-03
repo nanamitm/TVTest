@@ -74,6 +74,7 @@ namespace TVTest
 			bool fPumpStreamSyncPlayback = false;
 			DWORD FirstChannelSetDelay = 0;
 			DWORD MinChannelChangeInterval = 0;
+			DWORD RequestTimeout = 10000;
 
 			BonDriverOptions() = default;
 			BonDriverOptions(LPCTSTR pszBonDriverName);
