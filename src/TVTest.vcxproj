@@ -250,9 +250,9 @@
       <Command>call "$(ProjectDir)TVTestVersionHashGen.bat"</Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\avcodec-62.dll" "$(OutDir)"
-copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\avutil-60.dll" "$(OutDir)"
-copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\swresample-6.dll" "$(OutDir)"</Command>
+      <Command>copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\avcodec-63.dll" "$(OutDir)"
+copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\avutil-61.dll" "$(OutDir)"
+copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\swresample-7.dll" "$(OutDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -444,9 +444,9 @@ copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\swresample-6.dll" "$(OutDir
       <Command>call "$(ProjectDir)TVTestVersionHashGen.bat"</Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\avcodec-62.dll" "$(OutDir)"
-copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\avutil-60.dll" "$(OutDir)"
-copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\swresample-6.dll" "$(OutDir)"</Command>
+      <Command>copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\avcodec-63.dll" "$(OutDir)"
+copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\avutil-61.dll" "$(OutDir)"
+copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\swresample-7.dll" "$(OutDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release_MD|x64'">
@@ -512,9 +512,9 @@ copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\swresample-6.dll" "$(OutDir
       <Command>call "$(ProjectDir)TVTestVersionHashGen.bat"</Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\avcodec-62.dll" "$(OutDir)"
-copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\avutil-60.dll" "$(OutDir)"
-copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\swresample-6.dll" "$(OutDir)"</Command>
+      <Command>copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\avcodec-63.dll" "$(OutDir)"
+copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\avutil-61.dll" "$(OutDir)"
+copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\swresample-7.dll" "$(OutDir)"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
