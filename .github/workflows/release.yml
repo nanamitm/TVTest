@@ -77,7 +77,7 @@ jobs:
       - name: Build TVTest
         run: >-
           msbuild src\TVTest.sln
-          -t:"TVTest_Image;TVTest"
+          -t:TVTest
           -p:Configuration=${{ env.TVTEST_CONFIG }}
           -p:Platform=${{ matrix.platform }}
           -m -v:minimal -nologo
