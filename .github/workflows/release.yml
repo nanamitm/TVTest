@@ -1,0 +1,139 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      crt_type:
+        description: 'CRT のリンク方法'
+        type: choice
+        options: [static, dynamic]
+        default: static
+      plugins:
+        description: '同梱するプラグイン'
+        type: choice
+        options: [useful, all]
+        default: useful
+      archive:
+        description: '書庫の形式'
+        type: choice
+        options: ['7z', bz2]
+        default: '7z'
+
+permissions:
+  contents: write
+
+env:
+  CRT_TYPE: ${{ inputs.crt_type || 'static' }}
+  PLUGINS: ${{ inputs.plugins || 'useful' }}
+  ARCHIVE: ${{ inputs.archive || '7z' }}
+
+jobs:
+  build:
+    name: Build (${{ matrix.arch }})
+    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            platform: Win32
+          - arch: x64
+            platform: x64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Resolve build configuration
+        shell: bash
+        run: |
+          if [ "$CRT_TYPE" = dynamic ]; then
+            echo "TVTEST_CONFIG=Release_MD" >> "$GITHUB_ENV"
+            echo "SAMPLES_CONFIG=Release" >> "$GITHUB_ENV"
+          else
+            echo "TVTEST_CONFIG=Release" >> "$GITHUB_ENV"
+            echo "SAMPLES_CONFIG=Release_static" >> "$GITHUB_ENV"
+          fi
+
+      - name: Install HTML Help Workshop
+        id: hhw
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          choco install html-help-workshop -y --no-progress
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\HTML Help Workshop\hhc.exe")) {
+            throw "hhc.exe not found"
+          }
+
+      - name: Build TVTest
+        run: >-
+          msbuild src\TVTest.sln
+          -t:"TVTest_Image;TVTest"
+          -p:Configuration=${{ env.TVTEST_CONFIG }}
+          -p:Platform=${{ matrix.platform }}
+          -m -v:minimal -nologo
+
+      # hhc.exe が入手できなかった場合はヘルプ (TVTest.chm) 無しで packaging する
+      - name: Build help
+        if: steps.hhw.outcome == 'success'
+        run: >-
+          msbuild src\TVTest.sln
+          -t:Help
+          -p:Configuration=${{ env.TVTEST_CONFIG }}
+          -p:Platform=${{ matrix.platform }}
+          -v:minimal -nologo
+
+      - name: Build plugins
+        run: >-
+          msbuild sdk\Samples\Samples.sln
+          -p:Configuration=${{ env.SAMPLES_CONFIG }}
+          -p:Platform=${{ matrix.platform }}
+          -m -v:minimal -nologo
+
+      - name: Package
+        shell: bash
+        run: |
+          ./package.sh -a "${{ matrix.arch }}" -c "$CRT_TYPE" -l "$PLUGINS" -r "$ARCHIVE" -t release -o package
+          ls -l package
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TVTest-${{ matrix.arch }}
+          path: |
+            package/*.7z
+            package/*.tar.bz2
+          if-no-files-found: error
+
+  release:
+    name: Create release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --draft \
+            artifacts/*
