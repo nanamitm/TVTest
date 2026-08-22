@@ -85,6 +85,16 @@ then
 fi
 
 cp -fp "${src_bin_dir}/TVTest_Image.dll" "${dst_dir}/TVTest_Image.dll"
+
+## FFmpeg DLLs (copied to the build directory by the post-build step)
+for ffmpeg_dll in "${src_bin_dir}"/avcodec-*.dll "${src_bin_dir}"/avutil-*.dll "${src_bin_dir}"/swresample-*.dll
+do
+    if [ -f "$ffmpeg_dll" ]
+    then
+        cp -fp "$ffmpeg_dll" "${dst_dir}"
+    fi
+done
+
 cp -fp "${src_bin_dir}/TVTest.chm" "${dst_dir}/TVTest.chm"
 
 cp -fp doc/* "${dst_dir}"

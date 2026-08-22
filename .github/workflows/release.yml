@@ -37,9 +37,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # 同梱の FFmpeg のインポートライブラリが x64 のみのため x64 のみビルドする
         include:
-          - arch: x86
-            platform: Win32
           - arch: x64
             platform: x64
 
@@ -73,6 +72,13 @@ jobs:
           if (-not (Test-Path "${env:ProgramFiles(x86)}\HTML Help Workshop\hhc.exe")) {
             throw "hhc.exe not found"
           }
+
+      - name: Build LibISDB
+        run: >-
+          msbuild src\LibISDB\Projects\LibISDB.sln
+          -p:Configuration=${{ env.TVTEST_CONFIG }}
+          -p:Platform=${{ matrix.arch }}
+          -m -v:minimal -nologo
 
       - name: Build TVTest
         run: >-
