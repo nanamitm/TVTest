@@ -99,6 +99,9 @@
     <ClCompile Include="EpgOptions.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="EpgSyncClient.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="EventInfoPopup.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -525,6 +528,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="EpgOptions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="EpgSyncClient.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="EventInfoPopup.h">

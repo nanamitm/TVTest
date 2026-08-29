@@ -107,6 +107,12 @@ namespace TVTest
 		void OnEndEdcbDataLoading(bool fSuccess, LibISDB::EPGDatabase *pEPGDatabase) override;
 	};
 
+	class CEpgSyncEventHandler
+		: public CEpgSyncClient::CEventHandler
+	{
+		void OnServiceMerged(WORD NetworkID, WORD TransportStreamID, WORD ServiceID) override;
+	};
+
 	class CServiceUpdateInfo
 	{
 	public:
@@ -198,6 +204,7 @@ namespace TVTest
 		CCaptureOptions CaptureOptions;
 		CChannelScan ChannelScan;
 		CEpgOptions EpgOptions;
+		CEpgSyncClient EpgSyncClient;
 		CProgramGuideOptions ProgramGuideOptions;
 		CTSProcessorOptions TSProcessorOptions;
 		CPluginOptions PluginOptions;
@@ -220,6 +227,7 @@ namespace TVTest
 		} RestoreChannelInfo;
 
 		CEpgLoadEventHandler EpgLoadEventHandler;
+		CEpgSyncEventHandler EpgSyncEventHandler;
 
 		CAppMain();
 		~CAppMain();

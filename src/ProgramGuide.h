@@ -344,6 +344,7 @@ namespace TVTest
 		bool SetEPGDatabase(LibISDB::EPGDatabase *pEPGDatabase);
 		void Clear();
 		bool Refresh();
+		void OnEpgServiceUpdated(WORD NetworkID, WORD TransportStreamID, WORD ServiceID);
 		bool UpdateProgramGuide();
 		bool SetChannelProviderManager(CProgramGuideChannelProviderManager *pManager);
 		bool EnumChannelProvider(int Index, LPTSTR pszName, int MaxName) const;

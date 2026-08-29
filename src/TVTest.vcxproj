@@ -580,6 +580,7 @@ copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\swresample-7.dll" "$(OutDir
     <ClCompile Include="EpgChannelSettings.cpp" />
     <ClCompile Include="EpgDataLoader.cpp" />
     <ClCompile Include="EpgOptions.cpp" />
+    <ClCompile Include="EpgSyncClient.cpp" />
     <ClCompile Include="EpgUtil.cpp" />
     <ClCompile Include="EventInfoPopup.cpp" />
     <ClCompile Include="EventInfoUtil.cpp" />
@@ -728,6 +729,7 @@ copy /Y "$(SolutionDir)LibISDB\Thirdparty\ffmpeg\bin\swresample-7.dll" "$(OutDir
     <ClInclude Include="EpgChannelSettings.h" />
     <ClInclude Include="EpgDataLoader.h" />
     <ClInclude Include="EpgOptions.h" />
+    <ClInclude Include="EpgSyncClient.h" />
     <ClInclude Include="EpgUtil.h" />
     <ClInclude Include="EventInfoPopup.h" />
     <ClInclude Include="EventInfoUtil.h" />

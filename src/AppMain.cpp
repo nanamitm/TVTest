@@ -363,6 +363,9 @@ void CAppMain::Finalize()
 	::SetPriorityClass(::GetCurrentProcess(), BELOW_NORMAL_PRIORITY_CLASS);
 
 	if (!CmdLineOptions.m_fNoEpg) {
+		// 保存中にワーカースレッドがデータベースを触らないよう先に止める
+		EpgSyncClient.Close();
+
 		EpgOptions.SaveEpgFile(&EPGDatabase);
 	}
 
@@ -1127,6 +1130,8 @@ int CAppMain::Main(HINSTANCE hInstance, LPCTSTR pszCmdLine, int nCmdShow)
 		EpgOptions.LoadEpgFile(
 			&EPGDatabase, &EpgLoadEventHandler,
 			CEpgOptions::EpgFileLoadFlag::AllData);
+
+		EpgOptions.ApplySyncSettings();
 	}
 
 	ApplyEventInfoFont();
