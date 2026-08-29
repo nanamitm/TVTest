@@ -240,7 +240,17 @@ public:
 
 		*pRead = 0;
 
-		return ::WinHttpReadData(hStream, pBuffer, Size, pRead) && (*pRead > 0);
+		// WinHttpReadData() は同期モードでは要求したサイズが埋まるまで返らない。
+		// SSE のように少しずつ届く応答では、到着済みのサイズを取ってからその分だけ読む。
+		DWORD Available = 0;
+
+		if (!::WinHttpQueryDataAvailable(hStream, &Available))
+			return false;
+		if (Available == 0)
+			return false;	// 応答が終了した
+
+		return ::WinHttpReadData(hStream, pBuffer, std::min(Available, Size), pRead)
+			&& (*pRead > 0);
 	}
 
 	void EndStream()
@@ -607,10 +617,9 @@ private:
 			if (IsStopped())
 				break;
 
-			const unsigned long long LocalVersion =
-				GetLocalVersion(Remote.NetworkID, Remote.TransportStreamID, Remote.ServiceID);
-
-			if (Remote.Version <= LocalVersion)
+			if (!ShouldPull(
+					Remote.NetworkID, Remote.TransportStreamID, Remote.ServiceID,
+					Remote.Version, Remote.EventCount))
 				continue;
 
 			if (PullService(
@@ -800,22 +809,32 @@ private:
 		if ((NetworkID > 0xFFFF) || (TransportStreamID > 0xFFFF) || (ServiceID > 0xFFFF))
 			return;
 
+		unsigned long long EventCount = 0;
+		if ((Fields.size() < 6) || !ParseUInt64(Fields[5], &EventCount))
+			EventCount = 0;
+
 		// 自分が送ったものは無視する
 		if ((Fields.size() >= 8) && !m_Settings.Name.empty()
 				&& (Fields[7] == m_Settings.Name))
 			return;
 
-		if (Version <= GetLocalVersion(
+		if (!ShouldPull(
 				static_cast<WORD>(NetworkID),
 				static_cast<WORD>(TransportStreamID),
-				static_cast<WORD>(ServiceID)))
+				static_cast<WORD>(ServiceID),
+				Version, static_cast<unsigned int>(EventCount)))
 			return;
 
-		PullService(
-			&m_ReceiveClient,
-			static_cast<WORD>(NetworkID),
-			static_cast<WORD>(TransportStreamID),
-			static_cast<WORD>(ServiceID));
+		if (PullService(
+				&m_ReceiveClient,
+				static_cast<WORD>(NetworkID),
+				static_cast<WORD>(TransportStreamID),
+				static_cast<WORD>(ServiceID))) {
+			GetAppClass().AddLog(
+				TEXT("EPG 共有サーバから {:04X}/{:04X}/{:04X} の番組情報を取り込みました ({} 番組, from {})。"),
+				NetworkID, TransportStreamID, ServiceID,
+				EventCount, Fields.size() >= 8 ? Fields[7] : String());
+		}
 	}
 
 	// -- 共通 --------------------------------------------------------------
@@ -936,20 +955,60 @@ private:
 		return true;
 	}
 
-	/** ローカルのサービスのバージョン(UpdatedTime の最大値)を求める */
+	/** ローカルのサービスのバージョン(UpdatedTime の最大値)と番組数を求める
+
+	番組数は EPGDataSerializer が書き出す条件に合わせて数える。
+	*/
+	void GetLocalState(
+		WORD NetworkID, WORD TransportStreamID, WORD ServiceID,
+		unsigned long long *pVersion, unsigned int *pEventCount) const
+	{
+		unsigned long long Version = 0;
+		unsigned int EventCount = 0;
+
+		m_pEPGDatabase->EnumEventsUnsorted(
+			NetworkID, TransportStreamID, ServiceID,
+			[&Version, &EventCount](const LibISDB::EventInfo &Event) -> bool {
+				if (Event.EventName.empty() && !Event.IsCommonEvent)
+					return true;
+				if (Event.UpdatedTime > Version)
+					Version = Event.UpdatedTime;
+				EventCount++;
+				return true;
+			});
+
+		if (pVersion != nullptr)
+			*pVersion = Version;
+		if (pEventCount != nullptr)
+			*pEventCount = EventCount;
+	}
+
 	unsigned long long GetLocalVersion(WORD NetworkID, WORD TransportStreamID, WORD ServiceID) const
 	{
 		unsigned long long Version = 0;
 
-		m_pEPGDatabase->EnumEventsUnsorted(
-			NetworkID, TransportStreamID, ServiceID,
-			[&Version](const LibISDB::EventInfo &Event) -> bool {
-				if (Event.UpdatedTime > Version)
-					Version = Event.UpdatedTime;
-				return true;
-			});
+		GetLocalState(NetworkID, TransportStreamID, ServiceID, &Version, nullptr);
 
 		return Version;
+	}
+
+	/** サーバ側の情報を取り込むべきか
+
+	バージョンだけで判断すると、番組数が少なくても受信直後で UpdatedTime が
+	新しいサービスは、他機が持っている豊富な情報を取り込めなくなる。
+	相手のほうが番組を多く持っている場合も取り込む。
+	*/
+	bool ShouldPull(
+		WORD NetworkID, WORD TransportStreamID, WORD ServiceID,
+		unsigned long long RemoteVersion, unsigned int RemoteEventCount) const
+	{
+		unsigned long long LocalVersion;
+		unsigned int LocalEventCount;
+
+		GetLocalState(
+			NetworkID, TransportStreamID, ServiceID, &LocalVersion, &LocalEventCount);
+
+		return (RemoteVersion > LocalVersion) || (RemoteEventCount > LocalEventCount);
 	}
 
 	void BuildHeaders()
