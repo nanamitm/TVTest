@@ -27,6 +27,7 @@
 #include "LogoManager.h"
 #include "EpgDataStore.h"
 #include "EpgDataLoader.h"
+#include "EpgSyncClient.h"
 #include "Style.h"
 
 
@@ -95,6 +96,9 @@ namespace TVTest
 
 		EpgTimeMode GetEpgTimeMode() const { return m_EpgTimeMode; }
 
+		const CEpgSyncClient::SyncSettings &GetSyncSettings() const { return m_SyncSettings; }
+		void ApplySyncSettings();
+
 		bool LoadLogoFile();
 		bool SaveLogoFile();
 
@@ -157,6 +161,7 @@ namespace TVTest
 		bool m_fUseEDCBData = false;
 		CFilePath m_EDCBDataFolder;
 		EpgTimeMode m_EpgTimeMode = EpgTimeMode::JST;
+		CEpgSyncClient::SyncSettings m_SyncSettings;
 		bool m_fSaveLogoFile = true;
 		CFilePath m_LogoFileName{TEXT("LogoData")};
 

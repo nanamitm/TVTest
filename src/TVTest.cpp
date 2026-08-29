@@ -125,6 +125,16 @@ void CEpgLoadEventHandler::OnEndEpgDataLoading(bool fSuccess)
 }
 
 
+void CEpgSyncEventHandler::OnServiceMerged(WORD NetworkID, WORD TransportStreamID, WORD ServiceID)
+{
+	CAppMain &App = GetAppClass();
+
+	// ワーカースレッドから呼ばれるため、UI には PostMessage で伝える
+	App.Epg.ProgramGuide.OnEpgServiceUpdated(NetworkID, TransportStreamID, ServiceID);
+	App.MainWindow.PostMessage(WM_APP_EPGLOADED, 0, 0);
+}
+
+
 void CEpgLoadEventHandler::OnBeginEdcbDataLoading()
 {
 	TRACE(TEXT("Start EDCB data loading ...\n"));

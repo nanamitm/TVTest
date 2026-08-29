@@ -5120,6 +5120,17 @@ CProgramGuide::CProgramCustomizer::~CProgramCustomizer()
 }
 
 
+// 外部から番組情報が更新された時に呼ぶ
+// (EPG 共有サーバから取り込んだ場合など。ワーカースレッドから呼んでも安全)
+void CProgramGuide::OnEpgServiceUpdated(WORD NetworkID, WORD TransportStreamID, WORD ServiceID)
+{
+	PostMessage(
+		MESSAGE_REFRESHSERVICE,
+		MAKEWPARAM(NetworkID, TransportStreamID),
+		MAKELPARAM(ServiceID, 0));
+}
+
+
 CProgramGuide::CEPGDatabaseEventListener::CEPGDatabaseEventListener(CProgramGuide *pProgramGuide)
 	: m_pProgramGuide(pProgramGuide)
 {

@@ -79,6 +79,13 @@ bool CEpgOptions::ReadSettings(CSettings &Settings)
 			&& CheckEnumRange(static_cast<EpgTimeMode>(Value)))
 		m_EpgTimeMode = static_cast<EpgTimeMode>(Value);
 
+	Settings.Read(TEXT("EpgSyncEnable"), &m_SyncSettings.fEnable);
+	Settings.Read(TEXT("EpgSyncServer"), &m_SyncSettings.Server);
+	Settings.Read(TEXT("EpgSyncToken"), &m_SyncSettings.Token);
+	Settings.Read(TEXT("EpgSyncName"), &m_SyncSettings.Name);
+	if (int Interval; Settings.Read(TEXT("EpgSyncInterval"), &Interval) && (Interval >= 10))
+		m_SyncSettings.ScanInterval = static_cast<DWORD>(Interval) * 1000;
+
 	Settings.Read(TEXT("SaveLogoData"), &m_fSaveLogoFile);
 	Settings.Read(TEXT("LogoDataFileName"), &m_LogoFileName);
 
@@ -124,6 +131,12 @@ bool CEpgOptions::WriteSettings(CSettings &Settings)
 	Settings.Write(TEXT("UseEpgData"), m_fUseEDCBData);
 	Settings.Write(TEXT("EpgDataFolder"), m_EDCBDataFolder);
 	Settings.Write(TEXT("EpgTimeMode"), static_cast<int>(m_EpgTimeMode));
+
+	Settings.Write(TEXT("EpgSyncEnable"), m_SyncSettings.fEnable);
+	Settings.Write(TEXT("EpgSyncServer"), m_SyncSettings.Server);
+	Settings.Write(TEXT("EpgSyncToken"), m_SyncSettings.Token);
+	Settings.Write(TEXT("EpgSyncName"), m_SyncSettings.Name);
+	Settings.Write(TEXT("EpgSyncInterval"), static_cast<int>(m_SyncSettings.ScanInterval / 1000));
 
 	Settings.Write(TEXT("SaveLogoData"), m_fSaveLogoFile);
 	Settings.Write(TEXT("LogoDataFileName"), m_LogoFileName);
@@ -307,6 +320,24 @@ bool CEpgOptions::SaveLogoFile()
 }
 
 
+// 設定を EPG 共有クライアントに反映する(再起動なしで切り替えられるようにする)
+void CEpgOptions::ApplySyncSettings()
+{
+	CAppMain &App = GetAppClass();
+
+	const bool fWasOpen = App.EpgSyncClient.IsOpen();
+
+	App.EpgSyncClient.Close();
+
+	if (m_SyncSettings.IsValid()) {
+		App.EpgSyncClient.SetEventHandler(&App.EpgSyncEventHandler);
+		App.EpgSyncClient.Open(&App.EPGDatabase, m_SyncSettings);
+	} else if (fWasOpen) {
+		App.AddLog(TEXT("EPG 共有を停止しました。"));
+	}
+}
+
+
 INT_PTR CEpgOptions::DlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch (uMsg) {
@@ -333,6 +364,14 @@ INT_PTR CEpgOptions::DlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				IDC_EPGOPTIONS_EPGDATAFOLDER_LABEL,
 				IDC_EPGOPTIONS_EPGDATAFOLDER_BROWSE,
 				m_fUseEDCBData);
+
+			DlgCheckBox_Check(hDlg, IDC_EPGSYNC_ENABLE, m_SyncSettings.fEnable);
+			::SetDlgItemText(hDlg, IDC_EPGSYNC_SERVER, m_SyncSettings.Server.c_str());
+			::SetDlgItemText(hDlg, IDC_EPGSYNC_TOKEN, m_SyncSettings.Token.c_str());
+			::SetDlgItemText(hDlg, IDC_EPGSYNC_NAME, m_SyncSettings.Name.c_str());
+			EnableDlgItems(
+				hDlg, IDC_EPGSYNC_SERVER_LABEL, IDC_EPGSYNC_NAME,
+				m_SyncSettings.fEnable);
 
 			DlgCheckBox_Check(hDlg, IDC_LOGOOPTIONS_SAVEDATA, m_fSaveLogoFile);
 			::SendDlgItemMessage(hDlg, IDC_LOGOOPTIONS_DATAFILENAME, EM_LIMITTEXT, MAX_PATH - 1, 0);
@@ -408,6 +447,14 @@ INT_PTR CEpgOptions::DlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 				IDC_EPGOPTIONS_EPGDATAFOLDER_LABEL,
 				IDC_EPGOPTIONS_EPGDATAFOLDER_BROWSE,
 				IDC_EPGOPTIONS_USEEPGDATA);
+			return TRUE;
+
+		case IDC_EPGSYNC_ENABLE:
+			EnableDlgItemsSyncCheckBox(
+				hDlg,
+				IDC_EPGSYNC_SERVER_LABEL,
+				IDC_EPGSYNC_NAME,
+				IDC_EPGSYNC_ENABLE);
 			return TRUE;
 
 		case IDC_EPGOPTIONS_EPGDATAFOLDER_BROWSE:
@@ -496,6 +543,16 @@ INT_PTR CEpgOptions::DlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 						EpgFileLoadFlag::EdcbData);
 				}
 				m_fUseEDCBData = fUseEpgData;
+
+				const CEpgSyncClient::SyncSettings OldSyncSettings = m_SyncSettings;
+
+				m_SyncSettings.fEnable = DlgCheckBox_IsChecked(hDlg, IDC_EPGSYNC_ENABLE);
+				GetDlgItemString(hDlg, IDC_EPGSYNC_SERVER, &m_SyncSettings.Server);
+				GetDlgItemString(hDlg, IDC_EPGSYNC_TOKEN, &m_SyncSettings.Token);
+				GetDlgItemString(hDlg, IDC_EPGSYNC_NAME, &m_SyncSettings.Name);
+
+				if (m_SyncSettings != OldSyncSettings)
+					ApplySyncSettings();
 
 				m_fSaveLogoFile = DlgCheckBox_IsChecked(hDlg, IDC_LOGOOPTIONS_SAVEDATA);
 				GetDlgItemString(hDlg, IDC_LOGOOPTIONS_DATAFILENAME, &m_LogoFileName);
