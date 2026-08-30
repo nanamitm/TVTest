@@ -29,6 +29,7 @@
 #include <process.h>
 #include <mutex>
 #include <vector>
+#include <set>
 #include <algorithm>
 #include "Common/DebugDef.h"
 
@@ -64,6 +65,98 @@ String FromUTF8(const char *pData, size_t Size)
 	::MultiByteToWideChar(CP_UTF8, 0, pData, static_cast<int>(Size), Result.data(), Length);
 
 	return Result;
+}
+
+
+std::string ToUTF8(LPCTSTR pszText)
+{
+	if (IsStringEmpty(pszText))
+		return std::string();
+
+	const int SrcLength = ::lstrlen(pszText);
+	const int Length = ::WideCharToMultiByte(
+		CP_UTF8, 0, pszText, SrcLength, nullptr, 0, nullptr, nullptr);
+	if (Length <= 0)
+		return std::string();
+
+	std::string Result(Length, '\0');
+	::WideCharToMultiByte(
+		CP_UTF8, 0, pszText, SrcLength, Result.data(), Length, nullptr, nullptr);
+
+	return Result;
+}
+
+
+std::string EscapeJSONString(LPCTSTR pszText)
+{
+	const std::string Src = ToUTF8(pszText);
+	std::string Result;
+
+	Result.reserve(Src.length() + 8);
+	for (const unsigned char c : Src) {
+		switch (c) {
+		case '"': Result += "\\\""; break;
+		case '\\': Result += "\\\\"; break;
+		case '\b': Result += "\\b"; break;
+		case '\f': Result += "\\f"; break;
+		case '\n': Result += "\\n"; break;
+		case '\r': Result += "\\r"; break;
+		case '\t': Result += "\\t"; break;
+		default:
+			if (c < 0x20) {
+				char szCode[7];
+				::StringCchPrintfA(szCode, std::size(szCode), "\\u%04X", c);
+				Result += szCode;
+			} else {
+				Result.push_back(static_cast<char>(c));
+			}
+			break;
+		}
+	}
+
+	return Result;
+}
+
+
+std::string BuildServiceMetadata()
+{
+	const CChannelManager &ChannelManager = GetAppClass().ChannelManager;
+	const CChannelList *pChannelList = ChannelManager.GetAllChannelList();
+	std::string JSON = "{\"services\":[";
+	std::set<unsigned long long> Seen;
+	int Order = 0;
+
+	if (pChannelList != nullptr) {
+		for (int i = 0; i < pChannelList->NumChannels(); i++) {
+			const CChannelInfo *pChannel = pChannelList->GetChannelInfo(i);
+			if (pChannel == nullptr || !pChannel->IsEnabled() || IsStringEmpty(pChannel->GetName()))
+				continue;
+
+			const unsigned long long Key =
+				(static_cast<unsigned long long>(pChannel->GetNetworkID()) << 32)
+				| (static_cast<unsigned long long>(pChannel->GetTransportStreamID()) << 16)
+				| pChannel->GetServiceID();
+			if (!Seen.insert(Key).second)
+				continue;
+
+			if (Order > 0)
+				JSON += ',';
+			JSON += "{\"nid\":" + std::to_string(pChannel->GetNetworkID());
+			JSON += ",\"tsid\":" + std::to_string(pChannel->GetTransportStreamID());
+			JSON += ",\"sid\":" + std::to_string(pChannel->GetServiceID());
+			JSON += ",\"name\":\"" + EscapeJSONString(pChannel->GetName()) + '"';
+			JSON += ",\"group\":\"" + EscapeJSONString(
+				ChannelManager.GetTuningSpaceName(pChannel->GetSpace())) + '"';
+			JSON += ",\"remote_control_key\":" + std::to_string(pChannel->GetChannelNo());
+			JSON += ",\"service_type\":" + std::to_string(pChannel->GetServiceType());
+			JSON += ",\"order\":" + std::to_string(Order) + '}';
+			Order++;
+		}
+	}
+
+	JSON += "]}";
+
+	return JSON;
 }
 
 
@@ -469,9 +562,10 @@ class CEpgSyncClient::CImpl
 {
 public:
 	CImpl(LibISDB::EPGDatabase *pEPGDatabase, const SyncSettings &Settings,
-		  CEventHandler *pEventHandler)
+		  std::string ServiceMetadata, CEventHandler *pEventHandler)
 		: m_pEPGDatabase(pEPGDatabase)
 		, m_Settings(Settings)
+		, m_ServiceMetadata(std::move(ServiceMetadata))
 		, m_pEventHandler(pEventHandler)
 	{
 	}
@@ -587,6 +681,10 @@ private:
 		// 待たずに比較すると、既に持っている番組情報をサーバから取り直してしまう。
 		GetAppClass().EpgOptions.WaitEpgFileLoad(60 * 1000);
 
+		// 番組表で局名とチャンネル順を表示できるよう、起動時の一覧を送る。
+		if (!IsStopped())
+			PushServiceMetadata();
+
 		// まずサーバの持ち物を取り込む
 		if (!IsStopped())
 			PullAll();
@@ -600,6 +698,34 @@ private:
 				break;
 
 			PushUpdatedServices();
+		}
+	}
+
+	void PushServiceMetadata()
+	{
+		if (m_ServiceMetadata.empty())
+			return;
+
+		String Headers = m_CommonHeaders;
+		Headers += TEXT("Content-Type: application/json; charset=utf-8\r\n");
+
+		CHttpClient::Response Response;
+		if (!m_SendClient.Request(
+				L"PUT", TEXT("/api/service-metadata"), Headers,
+				m_ServiceMetadata.data(), m_ServiceMetadata.size(), &Response)) {
+			GetAppClass().AddLog(
+				CLogItem::LogType::Warning,
+				TEXT("EPG 共有サーバへ局情報を送信できませんでした。"));
+			return;
+		}
+
+		if (Response.StatusCode == 200) {
+			GetAppClass().AddLog(TEXT("EPG 共有サーバへ局情報を送信しました。"));
+		} else if (Response.StatusCode != 404) {
+			GetAppClass().AddLog(
+				CLogItem::LogType::Warning,
+				TEXT("EPG 共有サーバへの局情報送信が拒否されました (HTTP {})。"),
+				Response.StatusCode);
 		}
 	}
 
@@ -1081,6 +1207,7 @@ private:
 
 	LibISDB::EPGDatabase *m_pEPGDatabase;
 	SyncSettings m_Settings;
+	std::string m_ServiceMetadata;
 	CEventHandler *m_pEventHandler = nullptr;
 	String m_CommonHeaders;
 	CHttpClient m_SendClient;
@@ -1115,7 +1242,8 @@ bool CEpgSyncClient::Open(LibISDB::EPGDatabase *pEPGDatabase, const SyncSettings
 
 	m_Settings = Settings;
 
-	auto Impl = std::make_unique<CImpl>(pEPGDatabase, m_Settings, m_pEventHandler);
+	auto Impl = std::make_unique<CImpl>(
+		pEPGDatabase, m_Settings, BuildServiceMetadata(), m_pEventHandler);
 
 	if (!Impl->Start())
 		return false;
