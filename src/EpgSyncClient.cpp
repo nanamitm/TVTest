@@ -144,7 +144,11 @@ std::string BuildServiceMetadata()
 	if (pChannelList != nullptr) {
 		for (int i = 0; i < pChannelList->NumChannels(); i++) {
 			const CChannelInfo *pChannel = pChannelList->GetChannelInfo(i);
-			if (pChannel == nullptr || !pChannel->IsEnabled() || IsStringEmpty(pChannel->GetName()))
+			// 無効なチャンネルも局名の取得元にする。
+			// サブチャンネルやワンセグはチャンネルリスト上で無効になっている
+			// ことが多いが、EPG は EIT から取得したものをすべて送るため、
+			// ここで除外すると番組表に局名を出せないサービスが生じる。
+			if (pChannel == nullptr || IsStringEmpty(pChannel->GetName()))
 				continue;
 
 			const unsigned long long Key =
