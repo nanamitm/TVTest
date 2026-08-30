@@ -120,6 +120,10 @@ std::string EscapeJSONString(LPCTSTR pszText)
 
 const char *GetNetworkTypeName(WORD NetworkID)
 {
+	// スカパー!プレミアムサービスは通常の110度CSとは分けて表示する。
+	if (NetworkID == 0x000A)
+		return "other";
+
 	switch (GetAppClass().NetworkDefinition.GetNetworkType(NetworkID)) {
 	case CNetworkDefinition::NetworkType::Terrestrial: return "terrestrial";
 	case CNetworkDefinition::NetworkType::BS:          return "bs";

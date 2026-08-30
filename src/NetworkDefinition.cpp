@@ -54,6 +54,7 @@ CNetworkDefinition::CNetworkDefinition()
 	m_NetworkInfoList.emplace_back(6, TEXT("CS.SP-Basic"), NetworkType::CS);
 	m_NetworkInfoList.emplace_back(7, TEXT("CS.SP-Basic"), NetworkType::CS);
 	m_NetworkInfoList.emplace_back(10, TEXT("CS.SP-Premium"), NetworkType::CS);
+	m_NetworkInfoList.emplace_back(11, TEXT("BS4K"), NetworkType::BS);
 
 	m_KeyIDAssignList.reserve(lengthof(m_DefaultKeyIDAssignList));
 	for (const auto &e : m_DefaultKeyIDAssignList)
