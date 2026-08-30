@@ -118,6 +118,17 @@ std::string EscapeJSONString(LPCTSTR pszText)
 }
 
 
+const char *GetNetworkTypeName(WORD NetworkID)
+{
+	switch (GetAppClass().NetworkDefinition.GetNetworkType(NetworkID)) {
+	case CNetworkDefinition::NetworkType::Terrestrial: return "terrestrial";
+	case CNetworkDefinition::NetworkType::BS:          return "bs";
+	case CNetworkDefinition::NetworkType::CS:          return "cs";
+	default:                                           return "other";
+	}
+}
+
+
 std::string BuildServiceMetadata()
 {
 	const CChannelManager &ChannelManager = GetAppClass().ChannelManager;
@@ -147,6 +158,9 @@ std::string BuildServiceMetadata()
 			JSON += ",\"name\":\"" + EscapeJSONString(pChannel->GetName()) + '"';
 			JSON += ",\"group\":\"" + EscapeJSONString(
 				ChannelManager.GetTuningSpaceName(pChannel->GetSpace())) + '"';
+			JSON += ",\"network_type\":\"";
+			JSON += GetNetworkTypeName(pChannel->GetNetworkID());
+			JSON += '"';
 			JSON += ",\"remote_control_key\":" + std::to_string(pChannel->GetChannelNo());
 			JSON += ",\"service_type\":" + std::to_string(pChannel->GetServiceType());
 			JSON += ",\"order\":" + std::to_string(Order) + '}';
