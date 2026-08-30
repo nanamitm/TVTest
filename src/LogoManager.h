@@ -73,6 +73,8 @@ namespace TVTest
 		bool IsLogoAvailable(WORD NetworkID, WORD ServiceID, BYTE LogoType) const;
 		DWORD GetAvailableLogoType(WORD NetworkID, WORD ServiceID) const;
 		bool GetLogoInfo(WORD NetworkID, WORD ServiceID, BYTE LogoType, LogoInfo *pInfo) const;
+		// CDT から受信したままのロゴデータ(ARIB 形式の PNG)を取り出す
+		bool GetLogoData(WORD NetworkID, WORD LogoID, BYTE LogoType, std::vector<BYTE> *pData) const;
 
 		enum {
 			LOGOTYPE_48x24,

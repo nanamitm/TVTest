@@ -30,6 +30,7 @@
 #include <mutex>
 #include <vector>
 #include <set>
+#include <map>
 #include <algorithm>
 #include "Common/DebugDef.h"
 
@@ -133,13 +134,57 @@ const char *GetNetworkTypeName(WORD NetworkID)
 }
 
 
-std::string BuildServiceMetadata()
+/** 番組表に出すロゴ
+
+CDT から受信したままの ARIB 形式 PNG を持つ。ブラウザが読める PNG への
+変換はサーバ側で行う。
+*/
+struct LogoImage
+{
+	WORD NetworkID = 0;
+	WORD LogoID = 0;
+	WORD LogoVersion = 0;
+	BYTE LogoType = 0;
+	std::vector<BYTE> Data;
+};
+
+
+/** ロゴの種別を選ぶ優先順
+
+高度BS(NID 0x000B)は 64x36 (種別 5) しか送られてこないため、これを最優先に
+する。以降は大きいものから順に選ぶ。
+*/
+constexpr BYTE LOGO_TYPE_PREFERENCE[] = {0x05, 0x03, 0x04, 0x02, 0x00, 0x01};
+
+
+/** サービスに対応するロゴの種別を選ぶ。無ければ false */
+bool SelectLogoType(WORD NetworkID, WORD ServiceID, BYTE *pLogoType)
+{
+	const DWORD Available = GetAppClass().LogoManager.GetAvailableLogoType(NetworkID, ServiceID);
+
+	for (const BYTE Type : LOGO_TYPE_PREFERENCE) {
+		if (Available & (1UL << Type)) {
+			*pLogoType = Type;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
+std::string BuildServiceMetadata(std::vector<LogoImage> *pLogos)
 {
 	const CChannelManager &ChannelManager = GetAppClass().ChannelManager;
 	const CChannelList *pChannelList = ChannelManager.GetAllChannelList();
+	CLogoManager &LogoManager = GetAppClass().LogoManager;
 	std::string JSON = "{\"services\":[";
 	std::set<unsigned long long> Seen;
+	std::set<unsigned long long> LogoSeen;
 	int Order = 0;
+
+	if (pLogos != nullptr)
+		pLogos->clear();
 
 	if (pChannelList != nullptr) {
 		for (int i = 0; i < pChannelList->NumChannels(); i++) {
@@ -171,7 +216,35 @@ std::string BuildServiceMetadata()
 			JSON += '"';
 			JSON += ",\"remote_control_key\":" + std::to_string(pChannel->GetChannelNo());
 			JSON += ",\"service_type\":" + std::to_string(pChannel->GetServiceType());
-			JSON += ",\"order\":" + std::to_string(Order) + '}';
+			JSON += ",\"order\":" + std::to_string(Order);
+
+			CLogoManager::LogoInfo LogoInfo;
+			BYTE LogoType;
+			if (SelectLogoType(pChannel->GetNetworkID(), pChannel->GetServiceID(), &LogoType)
+					&& LogoManager.GetLogoInfo(
+						pChannel->GetNetworkID(), pChannel->GetServiceID(), LogoType, &LogoInfo)) {
+				JSON += ",\"logo_id\":" + std::to_string(LogoInfo.LogoID);
+				JSON += ",\"logo_type\":" + std::to_string(LogoInfo.LogoType);
+				JSON += ",\"logo_version\":" + std::to_string(LogoInfo.LogoVersion);
+
+				// 同じロゴを複数のサービスが共有するので、実体は一度だけ集める。
+				const unsigned long long LogoKey =
+					(static_cast<unsigned long long>(LogoInfo.NetworkID) << 32)
+					| (static_cast<unsigned long long>(LogoInfo.LogoID) << 16)
+					| LogoInfo.LogoType;
+				if ((pLogos != nullptr) && LogoSeen.insert(LogoKey).second) {
+					LogoImage Logo;
+					Logo.NetworkID = LogoInfo.NetworkID;
+					Logo.LogoID = LogoInfo.LogoID;
+					Logo.LogoVersion = LogoInfo.LogoVersion;
+					Logo.LogoType = LogoInfo.LogoType;
+					if (LogoManager.GetLogoData(
+							Logo.NetworkID, Logo.LogoID, Logo.LogoType, &Logo.Data))
+						pLogos->push_back(std::move(Logo));
+				}
+			}
+
+			JSON += '}';
 			Order++;
 		}
 	}
@@ -584,10 +657,12 @@ class CEpgSyncClient::CImpl
 {
 public:
 	CImpl(LibISDB::EPGDatabase *pEPGDatabase, const SyncSettings &Settings,
-		  std::string ServiceMetadata, CEventHandler *pEventHandler)
+		  std::string ServiceMetadata, std::vector<LogoImage> Logos,
+		  CEventHandler *pEventHandler)
 		: m_pEPGDatabase(pEPGDatabase)
 		, m_Settings(Settings)
 		, m_ServiceMetadata(std::move(ServiceMetadata))
+		, m_Logos(std::move(Logos))
 		, m_pEventHandler(pEventHandler)
 	{
 	}
@@ -707,6 +782,10 @@ private:
 		if (!IsStopped())
 			PushServiceMetadata();
 
+		// 局ロゴは滅多に変わらないので、サーバに無いものだけを送る。
+		if (!IsStopped())
+			PushLogos();
+
 		// まずサーバの持ち物を取り込む
 		if (!IsStopped())
 			PullAll();
@@ -749,6 +828,113 @@ private:
 				TEXT("EPG 共有サーバへの局情報送信が拒否されました (HTTP {})。"),
 				Response.StatusCode);
 		}
+	}
+
+	/** サーバが持っていないロゴを送る */
+	void PushLogos()
+	{
+		if (m_Logos.empty())
+			return;
+
+		std::map<unsigned long long, unsigned int> Remote;
+		if (!FetchLogoList(&Remote))
+			return;
+
+		String Headers = m_CommonHeaders;
+		Headers += TEXT("Content-Type: image/png\r\n");
+
+		int Sent = 0;
+
+		for (const LogoImage &Logo : m_Logos) {
+			if (IsStopped())
+				break;
+
+			const unsigned long long Key =
+				(static_cast<unsigned long long>(Logo.NetworkID) << 32)
+				| (static_cast<unsigned long long>(Logo.LogoID) << 16)
+				| Logo.LogoType;
+			const auto itr = Remote.find(Key);
+			// バージョンは 4bit で一周するので、一致しないときだけ送る。
+			if ((itr != Remote.end()) && (itr->second == Logo.LogoVersion))
+				continue;
+
+			String Path;
+			StringFormat(
+				&Path, TEXT("/api/logo/{}/{}/{}"),
+				Logo.NetworkID, Logo.LogoID, Logo.LogoType);
+
+			// StringFormat() は代入なので、組み立ててから足す。
+			String VersionHeader;
+			StringFormat(
+				&VersionHeader, TEXT("X-EPG-Logo-Version: {}\r\n"), Logo.LogoVersion);
+			const String LogoHeaders = Headers + VersionHeader;
+
+			CHttpClient::Response Response;
+			if (!m_SendClient.Request(
+					L"PUT", Path, LogoHeaders,
+					Logo.Data.data(), Logo.Data.size(), &Response))
+				break;
+			if (Response.StatusCode == 404)
+				return; // ロゴに対応していないサーバ
+			if (Response.StatusCode == 200)
+				Sent++;
+		}
+
+		if (Sent > 0)
+			GetAppClass().AddLog(TEXT("EPG 共有サーバへ {} 個の局ロゴを送信しました。"), Sent);
+	}
+
+	/** サーバが持っているロゴの一覧を得る */
+	bool FetchLogoList(std::map<unsigned long long, unsigned int> *pList)
+	{
+		CHttpClient::Response Response;
+
+		if (!m_SendClient.Request(
+				L"GET", TEXT("/api/logos?format=text"), m_CommonHeaders,
+				nullptr, 0, &Response))
+			return false;
+		if (Response.StatusCode != 200)
+			return false;
+
+		const String Text = FromUTF8(
+			reinterpret_cast<const char *>(Response.Body.data()), Response.Body.size());
+		size_t Pos = 0;
+
+		while (Pos < Text.length()) {
+			size_t End = Text.find(L'\n', Pos);
+			if (End == String::npos)
+				End = Text.length();
+
+			String Line = Text.substr(Pos, End - Pos);
+			Pos = End + 1;
+
+			if (!Line.empty() && (Line.back() == L'\r'))
+				Line.pop_back();
+			if (Line.empty())
+				continue;
+
+			// <nid> <logo_id> <type> <version>
+			const std::vector<String> Fields = SplitFields(Line, 4);
+			if (Fields.size() < 4)
+				continue;
+
+			unsigned long long Values[4];
+			bool fOK = true;
+
+			for (int i = 0; i < 4; i++) {
+				if (!ParseUInt64(Fields[i], &Values[i])) {
+					fOK = false;
+					break;
+				}
+			}
+			if (!fOK || (Values[0] > 0xFFFF) || (Values[1] > 0xFFFF) || (Values[2] > 0xFF))
+				continue;
+
+			(*pList)[(Values[0] << 32) | (Values[1] << 16) | Values[2]] =
+				static_cast<unsigned int>(Values[3]);
+		}
+
+		return true;
 	}
 
 	/** サーバにあって自分に無い(または自分より新しい)サービスを取り込む */
@@ -1230,6 +1416,7 @@ private:
 	LibISDB::EPGDatabase *m_pEPGDatabase;
 	SyncSettings m_Settings;
 	std::string m_ServiceMetadata;
+	std::vector<LogoImage> m_Logos;
 	CEventHandler *m_pEventHandler = nullptr;
 	String m_CommonHeaders;
 	CHttpClient m_SendClient;
@@ -1264,8 +1451,12 @@ bool CEpgSyncClient::Open(LibISDB::EPGDatabase *pEPGDatabase, const SyncSettings
 
 	m_Settings = Settings;
 
+	std::vector<LogoImage> Logos;
+	std::string ServiceMetadata = BuildServiceMetadata(&Logos);
+
 	auto Impl = std::make_unique<CImpl>(
-		pEPGDatabase, m_Settings, BuildServiceMetadata(), m_pEventHandler);
+		pEPGDatabase, m_Settings, std::move(ServiceMetadata), std::move(Logos),
+		m_pEventHandler);
 
 	if (!Impl->Start())
 		return false;

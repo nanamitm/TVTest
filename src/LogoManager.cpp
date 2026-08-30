@@ -482,6 +482,32 @@ DWORD CLogoManager::GetAvailableLogoType(WORD NetworkID, WORD ServiceID) const
 }
 
 
+bool CLogoManager::GetLogoData(
+	WORD NetworkID, WORD LogoID, BYTE LogoType, std::vector<BYTE> *pData) const
+{
+	if (pData == nullptr)
+		return false;
+
+	pData->clear();
+
+	BlockLock Lock(m_Lock);
+
+	auto itr = m_LogoMap.find(GetMapKey(NetworkID, LogoID, LogoType));
+	if (itr == m_LogoMap.end())
+		return false;
+
+	const CLogoData *pLogoData = itr->second.get();
+	const BYTE *pBits = pLogoData->GetData();
+	const WORD Size = pLogoData->GetDataSize();
+	if ((pBits == nullptr) || (Size == 0))
+		return false;
+
+	pData->assign(pBits, pBits + Size);
+
+	return true;
+}
+
+
 bool CLogoManager::GetLogoInfo(WORD NetworkID, WORD ServiceID, BYTE LogoType, LogoInfo *pInfo) const
 {
 	if (pInfo == nullptr)
