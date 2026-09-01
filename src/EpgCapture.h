@@ -98,6 +98,7 @@ namespace TVTest
 		DWORD GetTimeout() const { return m_Timeout; }
 		bool ProcessCapture();
 		void SetChannelFilter(const ChannelFilter &Filter) { m_ChannelFilter = Filter; }
+		void SetReportFileName(LPCTSTR pszFileName) { StringUtility::Assign(m_ReportFileName, pszFileName); }
 		const ChannelFilter &GetChannelFilter() const { return m_ChannelFilter; }
 		void SetEventHandler(CEventHandler *pEventHandler);
 		int GetChannelCount() const { return static_cast<int>(m_ChannelList.size()); }
@@ -106,8 +107,6 @@ namespace TVTest
 		bool IsChannelChanging() const { return m_fChannelChanging; }
 
 	private:
-		bool NextChannel();
-
 		struct ChannelGroup
 		{
 			int Space;
@@ -116,12 +115,16 @@ namespace TVTest
 			CChannelList ChannelList;
 		};
 
+		bool NextChannel();
+		void WriteReport(const ChannelGroup &ChGroup, bool fComplete, DWORD Span);
+
 		bool m_fCapturing = false;
 		bool m_fAllChannelsComplete = true;
 		Result m_LastResult = Result::None;
 		int m_CurChannel = -1;
 		std::vector<ChannelGroup> m_ChannelList;
 		ChannelFilter m_ChannelFilter;
+		String m_ReportFileName;
 		DWORD m_Timeout = 0;
 		Util::CClock m_AccumulateClock;
 		Util::CClock m_TotalClock;

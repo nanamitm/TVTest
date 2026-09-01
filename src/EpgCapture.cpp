@@ -372,12 +372,57 @@ bool CEpgCaptureManager::ProcessCapture()
 		m_fAllChannelsComplete = false;
 	}
 
+	WriteReport(CurChGroup, fComplete, m_AccumulateClock.GetSpan());
+
 	if (m_pEventHandler != nullptr)
 		m_pEventHandler->OnChannelEnd(fComplete);
 
 	NextChannel();
 
 	return true;
+}
+
+
+// 巡回したチャンネルを1行ずつ追記する
+// (取得を分担する外部のプログラムが、どのチャンネルをいつ取得できたかを知るため)
+void CEpgCaptureManager::WriteReport(const ChannelGroup &ChGroup, bool fComplete, DWORD Span)
+{
+	if (m_ReportFileName.empty())
+		return;
+
+	const HANDLE hFile = ::CreateFile(
+		m_ReportFileName.c_str(), FILE_APPEND_DATA,
+		FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+		OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+	if (hFile == INVALID_HANDLE_VALUE) {
+		GetAppClass().AddLog(
+			CLogItem::LogType::Error,
+			TEXT("取得結果を \"{}\" に書き出せません。"), m_ReportFileName);
+		m_ReportFileName.clear();
+		return;
+	}
+
+	SYSTEMTIME st;
+	::GetLocalTime(&st);
+
+	TCHAR szText[128];
+	const int Length = static_cast<int>(StringFormat(
+		szText,
+		TEXT("{:04}-{:02}-{:02}T{:02}:{:02}:{:02},{},{},{},{},{}\r\n"),
+		st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond,
+		ChGroup.Space, ChGroup.Channel,
+		fComplete ? 1 : 0, (Span + 500) / 1000,
+		ChGroup.ChannelList.NumChannels()));
+
+	char Buffer[256];
+	const int Size = ::WideCharToMultiByte(
+		CP_UTF8, 0, szText, Length, Buffer, sizeof(Buffer), nullptr, nullptr);
+	if (Size > 0) {
+		DWORD Written;
+		::WriteFile(hFile, Buffer, Size, &Written, nullptr);
+	}
+
+	::CloseHandle(hFile);
 }
 
 

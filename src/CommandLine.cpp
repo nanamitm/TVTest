@@ -439,6 +439,7 @@ static bool GetIniEntry(LPCWSTR pszText, CCommandLineOptions::IniEntry *pEntry)
 	/epgcapturetimeout EPG情報の取得の制限時間
 	/epgcapturech   EPG情報を取得するチャンネルの指定
 	/epgcapturepart EPG情報の取得を分割する指定
+	/epgcapturereport EPG情報の取得結果の書き出し先
 	/epg            EPG番組表を表示する
 	/epgonly        EPG番組表のみ表示する
 	/epgtuner       EPG番組表のデフォルトチューナー
@@ -469,6 +470,7 @@ void CCommandLineOptions::Parse(LPCWSTR pszCmdLine)
 					&& !Args.GetOption(TEXT("epgcaptureexit"), &m_fEpgCaptureExit)
 					&& !Args.GetDurationOption(TEXT("epgcapturetimeout"), &m_EpgCaptureTimeout)
 					&& !Args.GetOption(TEXT("epgcapturech"), &m_EpgCaptureChannels)
+					&& !Args.GetOption(TEXT("epgcapturereport"), &m_EpgCaptureReport)
 					&& !Args.GetOption(TEXT("epgonly"), &m_fProgramGuideOnly)
 					&& !Args.GetOption(TEXT("epgspace"), &m_ProgramGuideSpace)
 					&& !Args.GetOption(TEXT("epgtuner"), &m_ProgramGuideTuner)
