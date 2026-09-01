@@ -740,6 +740,7 @@ int CAppMain::Main(HINSTANCE hInstance, LPCTSTR pszCmdLine, int nCmdShow)
 
 	// 複数起動のチェック
 	if (AppMutex.AlreadyExists()
+			&& !CmdLineOptions.m_fEpgCapture
 			&& (GeneralOptions.GetKeepSingleTask() || CmdLineOptions.m_fSingleTask)) {
 		AddLog(TEXT("複数起動が禁止されています。"));
 		CTVTestWindowFinder Finder;
