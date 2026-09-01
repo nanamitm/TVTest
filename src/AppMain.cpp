@@ -713,6 +713,13 @@ int CAppMain::Main(HINSTANCE hInstance, LPCTSTR pszCmdLine, int nCmdShow)
 			Core.SetSilent(true);
 		if (CmdLineOptions.m_fTray)
 			CmdLineOptions.m_fMinimize = true;
+		if (CmdLineOptions.m_fEpgCapture) {
+			CmdLineOptions.m_fMinimize = true;
+			CmdLineOptions.m_fNoView = true;
+			CmdLineOptions.m_fNoDirectShow = true;
+			CmdLineOptions.m_fSilent = true;
+			Core.SetSilent(true);
+		}
 
 		if (CmdLineOptions.m_fProgramGuideOnly) {
 			CmdLineOptions.m_fShowProgramGuide = true;
@@ -1222,6 +1229,15 @@ int CAppMain::Main(HINSTANCE hInstance, LPCTSTR pszCmdLine, int nCmdShow)
 	}
 
 	AppEventManager.OnStartupDone();
+
+	if (CmdLineOptions.m_fEpgCapture) {
+		if (!EpgCaptureManager.BeginCapture(
+				nullptr, nullptr, CEpgCaptureManager::BeginFlag::NoUI)) {
+			AddLog(
+				CLogItem::LogType::Error,
+				TEXT("コマンドラインから番組表の取得を開始できませんでした。"));
+		}
+	}
 
 	// メッセージループ
 	MSG msg;
