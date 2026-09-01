@@ -4831,7 +4831,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARA
 
 	if (uMsg == WM_DESTROY) {
 		pThis->OnMessage(hwnd, uMsg, wParam, lParam);
-		::PostQuitMessage(0);
+		::PostQuitMessage(pThis->m_App.GetExitCode());
 		return 0;
 	}
 
@@ -7014,6 +7014,13 @@ void CMainWindow::CEpgCaptureEventHandler::OnEndCapture(CEpgCaptureManager::EndF
 	}
 
 	m_pMainWindow->ResumeViewer(ResumeInfo::ViewerSuspendFlag::EPGUpdate);
+
+	if (App.CmdLineOptions.m_fEpgCaptureExit) {
+		if (App.EpgCaptureManager.GetLastResult()
+				!= CEpgCaptureManager::Result::Completed)
+			App.SetExitCode(3);
+		App.Exit();
+	}
 }
 
 void CMainWindow::CEpgCaptureEventHandler::OnChannelChanged()

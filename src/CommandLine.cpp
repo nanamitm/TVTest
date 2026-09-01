@@ -435,6 +435,7 @@ static bool GetIniEntry(LPCWSTR pszText, CCommandLineOptions::IniEntry *pEntry)
 	/volume         音量
 	/noepg          EPG情報の取得を行わない
 	/epgcapture     EPG情報をバックグラウンドで取得する
+	/epgcaptureexit EPG情報の取得完了時に終了する
 	/epg            EPG番組表を表示する
 	/epgonly        EPG番組表のみ表示する
 	/epgtuner       EPG番組表のデフォルトチューナー
@@ -462,6 +463,7 @@ void CCommandLineOptions::Parse(LPCWSTR pszCmdLine)
 					&& !Args.GetOption(TEXT("d"), &m_DriverName)
 					&& !Args.GetOption(TEXT("epg"), &m_fShowProgramGuide)
 					&& !Args.GetOption(TEXT("epgcapture"), &m_fEpgCapture)
+					&& !Args.GetOption(TEXT("epgcaptureexit"), &m_fEpgCaptureExit)
 					&& !Args.GetOption(TEXT("epgonly"), &m_fProgramGuideOnly)
 					&& !Args.GetOption(TEXT("epgspace"), &m_ProgramGuideSpace)
 					&& !Args.GetOption(TEXT("epgtuner"), &m_ProgramGuideTuner)

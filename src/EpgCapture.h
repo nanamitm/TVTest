@@ -69,6 +69,13 @@ namespace TVTest
 			BeginFlag Flags = BeginFlag::None);
 		void EndCapture(EndFlag Flags = EndFlag::Default);
 		bool IsCapturing() const { return m_fCapturing; }
+		enum class Result {
+			None,
+			Completed,
+			Incomplete,
+			Canceled,
+		};
+		Result GetLastResult() const { return m_LastResult; }
 		bool ProcessCapture();
 		void SetEventHandler(CEventHandler *pEventHandler);
 		int GetChannelCount() const { return static_cast<int>(m_ChannelList.size()); }
@@ -88,6 +95,8 @@ namespace TVTest
 		};
 
 		bool m_fCapturing = false;
+		bool m_fAllChannelsComplete = true;
+		Result m_LastResult = Result::None;
 		int m_CurChannel = -1;
 		std::vector<ChannelGroup> m_ChannelList;
 		Util::CClock m_AccumulateClock;

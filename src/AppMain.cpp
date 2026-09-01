@@ -706,6 +706,8 @@ int CAppMain::Main(HINSTANCE hInstance, LPCTSTR pszCmdLine, int nCmdShow)
 		AddLog(TEXT("コマンドラインオプション : {}"), pszCmdLine);
 
 		CmdLineOptions.Parse(pszCmdLine);
+		if (CmdLineOptions.m_fEpgCaptureExit)
+			CmdLineOptions.m_fEpgCapture = true;
 
 		if (CmdLineOptions.m_TvRockDID >= 0)
 			CmdLineOptions.m_fSilent = true;
@@ -1236,6 +1238,10 @@ int CAppMain::Main(HINSTANCE hInstance, LPCTSTR pszCmdLine, int nCmdShow)
 			AddLog(
 				CLogItem::LogType::Error,
 				TEXT("コマンドラインから番組表の取得を開始できませんでした。"));
+			if (CmdLineOptions.m_fEpgCaptureExit) {
+				SetExitCode(2);
+				Exit();
+			}
 		}
 	}
 

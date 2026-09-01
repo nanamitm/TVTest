@@ -136,6 +136,8 @@ bool CEpgCaptureManager::BeginCapture(
 	}
 
 	m_fCapturing = true;
+	m_fAllChannelsComplete = true;
+	m_LastResult = Result::None;
 	m_CurChannel = -1;
 
 	App.AddLog(TEXT("番組表の取得を開始します。"));
@@ -153,6 +155,8 @@ void CEpgCaptureManager::EndCapture(EndFlag Flags)
 {
 	if (!m_fCapturing)
 		return;
+	if (m_LastResult == Result::None)
+		m_LastResult = Result::Canceled;
 
 	CAppMain &App = GetAppClass();
 
@@ -230,6 +234,7 @@ bool CEpgCaptureManager::ProcessCapture()
 		if (m_AccumulateClock.GetSpan() < Timeout)
 			return false;
 		TRACE(TEXT("EPG schedule timeout\n"));
+		m_fAllChannelsComplete = false;
 	}
 
 	if (m_pEventHandler != nullptr)
@@ -282,8 +287,10 @@ bool CEpgCaptureManager::NextChannel()
 				m_pEventHandler->OnChannelChanged();
 			return true;
 		}
+		m_fAllChannelsComplete = false;
 	}
 
+	m_LastResult = m_fAllChannelsComplete ? Result::Completed : Result::Incomplete;
 	EndCapture();
 
 	return false;

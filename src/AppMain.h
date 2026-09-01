@@ -273,6 +273,8 @@ namespace TVTest
 		void Initialize();
 		void Finalize();
 		void Exit();
+		void SetExitCode(int ExitCode) { m_ExitCode = ExitCode; }
+		int GetExitCode() const { return m_ExitCode; }
 		bool LoadSettings();
 		enum class SaveSettingsFlag : unsigned int {
 			None    = 0x0000U,
@@ -371,6 +373,7 @@ namespace TVTest
 		CFilePath m_FavoritesFileName;
 		CSettings m_Settings;
 		bool m_fFirstExecute = false;
+		int m_ExitCode = 0;
 		bool m_fInitialSettings = false;
 		CEngineEventListener m_EngineEventListener{*this};
 		CStreamInfoEventHandler m_StreamInfoEventHandler{*this};
