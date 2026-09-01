@@ -29,6 +29,108 @@ namespace TVTest
 {
 
 
+namespace
+{
+
+// 数値か * を1つ読む(* は -1 として返す)
+bool ParseFilterValue(LPCTSTR *ppText, int *pValue)
+{
+	LPCTSTR p = *ppText;
+
+	if (*p == _T('*')) {
+		*pValue = -1;
+		*ppText = p + 1;
+		return true;
+	}
+	if (*p < _T('0') || *p > _T('9'))
+		return false;
+
+	int Value = 0;
+	do {
+		Value = Value * 10 + (*p - _T('0'));
+		if (Value > 0xFFFF)
+			return false;
+		p++;
+	} while (*p >= _T('0') && *p <= _T('9'));
+
+	*pValue = Value;
+	*ppText = p;
+
+	return true;
+}
+
+} // namespace
+
+
+bool CEpgCaptureManager::ChannelFilter::Match(const CChannelInfo &ChannelInfo) const
+{
+	if (RangeList.empty())
+		return true;
+
+	for (const Range &e : RangeList) {
+		if (e.Space >= 0 && e.Space != ChannelInfo.GetSpace())
+			continue;
+		if (e.First < 0)
+			return true;
+		const int Index = ChannelInfo.GetChannelIndex();
+		if (Index >= e.First && Index <= e.Last)
+			return true;
+	}
+
+	return false;
+}
+
+
+// "空間:チャンネル-チャンネル" をカンマで並べた指定を解析する
+// (e.g. "0:0-11,1:*,2")
+bool CEpgCaptureManager::ParseChannelFilter(LPCTSTR pszFilter, ChannelFilter *pFilter)
+{
+	if (pFilter == nullptr)
+		return false;
+
+	pFilter->RangeList.clear();
+
+	if (IsStringEmpty(pszFilter))
+		return false;
+
+	LPCTSTR p = pszFilter;
+
+	while (*p != _T('\0')) {
+		while (*p == _T(' ') || *p == _T(','))
+			p++;
+		if (*p == _T('\0'))
+			break;
+
+		ChannelFilter::Range Range;
+		Range.Space = -1;
+		Range.First = -1;
+		Range.Last = -1;
+
+		if (!ParseFilterValue(&p, &Range.Space))
+			return false;
+		if (*p == _T(':')) {
+			p++;
+			if (!ParseFilterValue(&p, &Range.First))
+				return false;
+			Range.Last = Range.First;
+			if (*p == _T('-')) {
+				p++;
+				if (!ParseFilterValue(&p, &Range.Last))
+					return false;
+				if (Range.First < 0 || Range.Last < Range.First)
+					return false;
+			}
+		}
+		if (*p != _T('\0') && *p != _T(',') && *p != _T(' '))
+			return false;
+
+		pFilter->RangeList.push_back(Range);
+	}
+
+	return !pFilter->RangeList.empty();
+}
+
+
 bool CEpgCaptureManager::BeginCapture(
 	LPCTSTR pszTuner, const CChannelList *pChannelList, BeginFlag Flags)
 {
@@ -90,7 +192,7 @@ bool CEpgCaptureManager::BeginCapture(
 	for (int i = 0; i < pChannelList->NumChannels(); i++) {
 		const CChannelInfo *pChInfo = pChannelList->GetChannelInfo(i);
 
-		if (pChInfo->IsEnabled()) {
+		if (pChInfo->IsEnabled() && m_ChannelFilter.Match(*pChInfo)) {
 			const CNetworkDefinition::NetworkType Network =
 				App.NetworkDefinition.GetNetworkType(pChInfo->GetNetworkID());
 			std::vector<ChannelGroup>::iterator itr;
@@ -114,7 +216,21 @@ bool CEpgCaptureManager::BeginCapture(
 			itr->ChannelList.AddChannel(*pChInfo);
 		}
 	}
+	if (m_ChannelFilter.PartCount > 1) {
+		// 同じトランスポンダのまとまりを崩さないよう、グループ単位で振り分ける
+		std::vector<ChannelGroup> Part;
+
+		for (size_t i = 0; i < m_ChannelList.size(); i++) {
+			if (static_cast<int>(i % m_ChannelFilter.PartCount) == m_ChannelFilter.PartIndex - 1)
+				Part.push_back(std::move(m_ChannelList[i]));
+		}
+		m_ChannelList = std::move(Part);
+	}
+
 	if (m_ChannelList.empty()) {
+		App.AddLog(
+			CLogItem::LogType::Error,
+			TEXT("番組表を取得する対象のチャンネルがありません。"));
 		if (!fTunerAlreadyOpened)
 			App.Core.CloseTuner();
 		return false;
@@ -141,7 +257,18 @@ bool CEpgCaptureManager::BeginCapture(
 	m_CurChannel = -1;
 	m_TotalClock.Start();
 
-	App.AddLog(TEXT("番組表の取得を開始します。"));
+	if (m_ChannelFilter.PartCount > 1) {
+		App.AddLog(
+			TEXT("番組表の取得を開始します。({} チャンネル / {} 分割の {} 番目)"),
+			static_cast<int>(m_ChannelList.size()),
+			m_ChannelFilter.PartCount, m_ChannelFilter.PartIndex);
+	} else if (!m_ChannelFilter.RangeList.empty()) {
+		App.AddLog(
+			TEXT("番組表の取得を開始します。({} チャンネル)"),
+			static_cast<int>(m_ChannelList.size()));
+	} else {
+		App.AddLog(TEXT("番組表の取得を開始します。"));
+	}
 
 	if (m_pEventHandler != nullptr)
 		m_pEventHandler->OnBeginCapture(Flags, Status);

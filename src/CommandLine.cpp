@@ -437,6 +437,8 @@ static bool GetIniEntry(LPCWSTR pszText, CCommandLineOptions::IniEntry *pEntry)
 	/epgcapture     EPG情報をバックグラウンドで取得する
 	/epgcaptureexit EPG情報の取得完了時に終了する
 	/epgcapturetimeout EPG情報の取得の制限時間
+	/epgcapturech   EPG情報を取得するチャンネルの指定
+	/epgcapturepart EPG情報の取得を分割する指定
 	/epg            EPG番組表を表示する
 	/epgonly        EPG番組表のみ表示する
 	/epgtuner       EPG番組表のデフォルトチューナー
@@ -466,6 +468,7 @@ void CCommandLineOptions::Parse(LPCWSTR pszCmdLine)
 					&& !Args.GetOption(TEXT("epgcapture"), &m_fEpgCapture)
 					&& !Args.GetOption(TEXT("epgcaptureexit"), &m_fEpgCaptureExit)
 					&& !Args.GetDurationOption(TEXT("epgcapturetimeout"), &m_EpgCaptureTimeout)
+					&& !Args.GetOption(TEXT("epgcapturech"), &m_EpgCaptureChannels)
 					&& !Args.GetOption(TEXT("epgonly"), &m_fProgramGuideOnly)
 					&& !Args.GetOption(TEXT("epgspace"), &m_ProgramGuideSpace)
 					&& !Args.GetOption(TEXT("epgtuner"), &m_ProgramGuideTuner)
@@ -526,6 +529,24 @@ void CCommandLineOptions::Parse(LPCWSTR pszCmdLine)
 						TCHAR szPlugin[MAX_PATH];
 						if (Args.GetText(szPlugin, MAX_PATH))
 							m_NoLoadPlugins.emplace_back(szPlugin);
+					}
+				} else if (Args.IsOption(TEXT("epgcapturepart"))) {
+					// "N/M" の形式で、M 分割した N 番目を指定する
+					if (Args.Next()) {
+						LPCWSTR p = Args.GetText();
+						int Index = 0, Count = 0;
+
+						while (*p >= L'0' && *p <= L'9')
+							Index = Index * 10 + (*p++ - L'0');
+						if (*p == L'/') {
+							p++;
+							while (*p >= L'0' && *p <= L'9')
+								Count = Count * 10 + (*p++ - L'0');
+						}
+						if (*p == L'\0' && Index > 0 && Index <= Count) {
+							m_EpgCapturePart = Index;
+							m_EpgCapturePartCount = Count;
+						}
 					}
 				} else if (Args.IsOption(TEXT("did"))) {
 					if (Args.Next()) {

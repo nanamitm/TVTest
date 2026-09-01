@@ -52,6 +52,9 @@ namespace TVTest
 		bool m_fEpgCapture = false;
 		bool m_fEpgCaptureExit = false;
 		int m_EpgCaptureTimeout = 0;
+		String m_EpgCaptureChannels;
+		int m_EpgCapturePart = 0;
+		int m_EpgCapturePartCount = 0;
 		bool m_f1Seg = false;
 		bool m_fJumpList = false;
 		int m_TvRockDID = -1;

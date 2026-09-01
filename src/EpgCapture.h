@@ -54,6 +54,24 @@ namespace TVTest
 			Default    = CloseTuner | Resume,
 		};
 
+		struct ChannelFilter
+		{
+			struct Range
+			{
+				int Space;   // チューニング空間 (-1 ですべて)
+				int First;   // チャンネルの範囲 (First が -1 で空間全体)
+				int Last;
+			};
+
+			std::vector<Range> RangeList;
+			int PartIndex = 0;   // 1 から数えた分割の位置 (0 で分割しない)
+			int PartCount = 0;
+
+			bool Match(const CChannelInfo &ChannelInfo) const;
+		};
+
+		static bool ParseChannelFilter(LPCTSTR pszFilter, ChannelFilter *pFilter);
+
 		class ABSTRACT_CLASS(CEventHandler)
 		{
 		public:
@@ -79,6 +97,8 @@ namespace TVTest
 		void SetTimeout(DWORD Timeout) { m_Timeout = Timeout; }
 		DWORD GetTimeout() const { return m_Timeout; }
 		bool ProcessCapture();
+		void SetChannelFilter(const ChannelFilter &Filter) { m_ChannelFilter = Filter; }
+		const ChannelFilter &GetChannelFilter() const { return m_ChannelFilter; }
 		void SetEventHandler(CEventHandler *pEventHandler);
 		int GetChannelCount() const { return static_cast<int>(m_ChannelList.size()); }
 		int GetCurChannel() const { return m_CurChannel; }
@@ -101,6 +121,7 @@ namespace TVTest
 		Result m_LastResult = Result::None;
 		int m_CurChannel = -1;
 		std::vector<ChannelGroup> m_ChannelList;
+		ChannelFilter m_ChannelFilter;
 		DWORD m_Timeout = 0;
 		Util::CClock m_AccumulateClock;
 		Util::CClock m_TotalClock;

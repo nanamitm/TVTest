@@ -1238,8 +1238,33 @@ int CAppMain::Main(HINSTANCE hInstance, LPCTSTR pszCmdLine, int nCmdShow)
 			EpgCaptureManager.SetTimeout(
 				static_cast<DWORD>(CmdLineOptions.m_EpgCaptureTimeout) * 1000);
 		}
-		if (!EpgCaptureManager.BeginCapture(
-				nullptr, nullptr, CEpgCaptureManager::BeginFlag::NoUI)) {
+
+		CEpgCaptureManager::ChannelFilter Filter;
+		bool fFilterError = false;
+
+		if (!CmdLineOptions.m_EpgCaptureChannels.empty()
+				&& !CEpgCaptureManager::ParseChannelFilter(
+					CmdLineOptions.m_EpgCaptureChannels.c_str(), &Filter)) {
+			AddLog(
+				CLogItem::LogType::Error,
+				TEXT("チャンネルの指定 \"{}\" を解釈できません。"),
+				CmdLineOptions.m_EpgCaptureChannels);
+			fFilterError = true;
+		}
+		Filter.PartIndex = CmdLineOptions.m_EpgCapturePart;
+		Filter.PartCount = CmdLineOptions.m_EpgCapturePartCount;
+		EpgCaptureManager.SetChannelFilter(Filter);
+
+		// チャンネルの指定はチューニング空間を跨ぐので、現在の空間ではなく
+		// すべてのチャンネルから選ぶ
+		const CChannelList *pChannelList =
+			Filter.RangeList.empty() ? nullptr : ChannelManager.GetAllChannelList();
+
+		if (fFilterError) {
+			SetExitCode(2);
+			Exit();
+		} else if (!EpgCaptureManager.BeginCapture(
+				nullptr, pChannelList, CEpgCaptureManager::BeginFlag::NoUI)) {
 			AddLog(
 				CLogItem::LogType::Error,
 				TEXT("コマンドラインから番組表の取得を開始できませんでした。"));
