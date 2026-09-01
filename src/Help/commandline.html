@@ -87,10 +87,16 @@ h/m/s で 時間/分/秒 を指定することも可能です。詳細は /recdu
 番組表などは表示できなくなります。</td></tr>
 <tr><td>/epgcapture</td><td>EPG 情報をバックグラウンドで取得する<br>
 指定された BonDriver の有効なチャンネルを順番に巡回します。<br>
-複数起動を禁止する設定にかかわらず、専用のプロセスとして起動します。</td></tr>
+複数起動を禁止する設定にかかわらず、専用のプロセスとして起動します。<br>
+取得中に <b>TVTest_EpgCaptureCancel</b> 又は <b>TVTest_EpgCaptureCancel_&lt;プロセスID&gt;</b> という名前のイベントをシグナル状態にすると、取得を中止します。</td></tr>
 <tr><td>/epgcaptureexit</td><td>EPG 情報の取得完了時にプログラムを終了する<br>
 このオプションを指定すると /epgcapture も有効になります。<br>
-終了コードは、成功時 0、取得開始失敗時 2、取得未完了時 3、EPG 共有への送信失敗時 4 です。</td></tr>
+終了コードは、成功時 0、取得開始失敗時 2、取得未完了時 3、EPG 共有への送信失敗時 4 です。<br>
+中止された場合も取得未完了として扱われます。</td></tr>
+<tr><td>/epgcapturetimeout</td><td>EPG 情報の取得の制限時間 (e.g. /epgcapturetimeout 30m)<br>
+時間の指定方法は /recduration と同じです。<br>
+制限時間を超えると取得を中止します(0 又は未指定で無制限)。<br>
+/epgcapture と共に指定した場合のみ有効です。</td></tr>
 <tr><td>/epg</td><td>EPG 番組表を表示する</td></tr>
 <tr><td>/epgonly</td><td>EPG 番組表のみ表示する<br>
 番組表を閉じると終了します(視聴や録画を行っている場合を除く)。</td></tr>

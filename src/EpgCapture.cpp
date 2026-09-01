@@ -139,6 +139,7 @@ bool CEpgCaptureManager::BeginCapture(
 	m_fAllChannelsComplete = true;
 	m_LastResult = Result::None;
 	m_CurChannel = -1;
+	m_TotalClock.Start();
 
 	App.AddLog(TEXT("番組表の取得を開始します。"));
 
@@ -175,6 +176,13 @@ bool CEpgCaptureManager::ProcessCapture()
 {
 	if (!m_fCapturing)
 		return true;
+
+	if (m_Timeout > 0 && m_TotalClock.GetSpan() >= m_Timeout) {
+		GetAppClass().AddLog(
+			TEXT("番組表の取得が制限時間({}秒)を超えたため中止します。"), m_Timeout / 1000);
+		EndCapture();
+		return true;
+	}
 
 	const CAppMain &App = GetAppClass();
 	const LibISDB::EPGDatabase &EPGDatabase = App.EPGDatabase;

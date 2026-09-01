@@ -62,6 +62,7 @@ namespace TVTest
 	constexpr UINT WM_APP_AUDIOLISTCHANGED       = WM_APP + 18;
 	constexpr UINT WM_APP_SPDIFPASSTHROUGHERROR  = WM_APP + 19;
 	constexpr UINT WM_APP_UPDATECLOCK            = WM_APP + 20;
+	constexpr UINT WM_APP_EPGCAPTURECANCEL       = WM_APP + 21;
 
 	enum {
 		CONTAINER_ID_VIEW = 1,
@@ -605,6 +606,15 @@ namespace TVTest
 		bool m_fNeedEventInfoOSD = false;
 
 		CEpgCaptureEventHandler m_EpgCaptureEventHandler{this};
+
+		HANDLE m_hEpgCaptureCancelEvent = nullptr;
+		HANDLE m_hEpgCaptureCancelWait = nullptr;
+		HANDLE m_hEpgCaptureCancelProcessEvent = nullptr;
+		HANDLE m_hEpgCaptureCancelProcessWait = nullptr;
+
+		bool BeginEpgCaptureCancelWatch();
+		void EndEpgCaptureCancelWatch();
+		static void CALLBACK EpgCaptureCancelCallback(PVOID pParameter, BOOLEAN TimerOrWaitFired);
 
 		class CClockUpdateTimer
 			: public Util::CTimer

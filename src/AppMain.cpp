@@ -1234,6 +1234,10 @@ int CAppMain::Main(HINSTANCE hInstance, LPCTSTR pszCmdLine, int nCmdShow)
 	AppEventManager.OnStartupDone();
 
 	if (CmdLineOptions.m_fEpgCapture) {
+		if (CmdLineOptions.m_EpgCaptureTimeout > 0) {
+			EpgCaptureManager.SetTimeout(
+				static_cast<DWORD>(CmdLineOptions.m_EpgCaptureTimeout) * 1000);
+		}
 		if (!EpgCaptureManager.BeginCapture(
 				nullptr, nullptr, CEpgCaptureManager::BeginFlag::NoUI)) {
 			AddLog(

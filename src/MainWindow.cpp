@@ -1530,6 +1530,19 @@ LRESULT CMainWindow::OnMessage(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPara
 		m_App.StatusView.RedrawItem(STATUS_ITEM_CLOCK);
 		return 0;
 
+	case WM_APP_EPGCAPTURECANCEL:
+		// 外部からの番組表取得の中止要求
+		TRACE(TEXT("WM_APP_EPGCAPTURECANCEL\n"));
+		if (m_hEpgCaptureCancelEvent != nullptr)
+			::ResetEvent(m_hEpgCaptureCancelEvent);
+		if (m_hEpgCaptureCancelProcessEvent != nullptr)
+			::ResetEvent(m_hEpgCaptureCancelProcessEvent);
+		if (m_App.EpgCaptureManager.IsCapturing()) {
+			m_App.AddLog(TEXT("中止要求を受けたため番組表の取得を中止します。"));
+			m_App.EpgCaptureManager.EndCapture(CEpgCaptureManager::EndFlag::None);
+		}
+		return 0;
+
 	case WM_ACTIVATEAPP:
 		{
 			const bool fActive = wParam != FALSE;
@@ -1927,6 +1940,7 @@ void CMainWindow::OnDestroy()
 	m_pCore->PreventDisplaySave(false);
 
 	m_App.EpgCaptureManager.SetEventHandler(nullptr);
+	EndEpgCaptureCancelWatch();
 
 	if (m_hHook != nullptr) {
 		::UnhookWindowsHookEx(m_hHook);
@@ -3570,6 +3584,10 @@ bool CMainWindow::OnClose(HWND hwnd)
 		return false;
 
 	m_fClosing = true;
+
+	// 取得中の番組表データが破棄されないように、閉じる前に取得を終了する
+	if (m_App.EpgCaptureManager.IsCapturing())
+		m_App.EpgCaptureManager.EndCapture(CEpgCaptureManager::EndFlag::None);
 
 	::SetCursor(::LoadCursor(nullptr, IDC_WAIT));
 
@@ -6963,6 +6981,73 @@ bool CMainWindow::CCursorTracker::OnCursorMove(int x, int y)
 }
 
 
+// 外部プロセスから番組表の取得を中止するためのイベントを作成する
+bool CMainWindow::BeginEpgCaptureCancelWatch()
+{
+	EndEpgCaptureCancelWatch();
+
+	static const LPCTSTR pszEventName = TEXT("TVTest_EpgCaptureCancel");
+	TCHAR szName[64];
+
+	m_hEpgCaptureCancelEvent = ::CreateEvent(nullptr, TRUE, FALSE, pszEventName);
+	StringFormat(szName, TEXT("{}_{}"), pszEventName, ::GetCurrentProcessId());
+	m_hEpgCaptureCancelProcessEvent = ::CreateEvent(nullptr, TRUE, FALSE, szName);
+
+	if (m_hEpgCaptureCancelEvent == nullptr && m_hEpgCaptureCancelProcessEvent == nullptr) {
+		m_App.AddLog(
+			CLogItem::LogType::Error,
+			TEXT("番組表の取得の中止要求を受け付けるイベントを作成できません。"));
+		return false;
+	}
+
+	if (m_hEpgCaptureCancelEvent != nullptr) {
+		::RegisterWaitForSingleObject(
+			&m_hEpgCaptureCancelWait, m_hEpgCaptureCancelEvent,
+			EpgCaptureCancelCallback, m_hwnd, INFINITE,
+			WT_EXECUTEONLYONCE | WT_EXECUTEINWAITTHREAD);
+	}
+	if (m_hEpgCaptureCancelProcessEvent != nullptr) {
+		::RegisterWaitForSingleObject(
+			&m_hEpgCaptureCancelProcessWait, m_hEpgCaptureCancelProcessEvent,
+			EpgCaptureCancelCallback, m_hwnd, INFINITE,
+			WT_EXECUTEONLYONCE | WT_EXECUTEINWAITTHREAD);
+	}
+
+	m_App.AddLog(
+		TEXT("イベント \"{}\" 又は \"{}\" で番組表の取得を中止できます。"),
+		pszEventName, szName);
+
+	return true;
+}
+
+
+void CMainWindow::EndEpgCaptureCancelWatch()
+{
+	if (m_hEpgCaptureCancelWait != nullptr) {
+		::UnregisterWaitEx(m_hEpgCaptureCancelWait, INVALID_HANDLE_VALUE);
+		m_hEpgCaptureCancelWait = nullptr;
+	}
+	if (m_hEpgCaptureCancelProcessWait != nullptr) {
+		::UnregisterWaitEx(m_hEpgCaptureCancelProcessWait, INVALID_HANDLE_VALUE);
+		m_hEpgCaptureCancelProcessWait = nullptr;
+	}
+	if (m_hEpgCaptureCancelEvent != nullptr) {
+		::CloseHandle(m_hEpgCaptureCancelEvent);
+		m_hEpgCaptureCancelEvent = nullptr;
+	}
+	if (m_hEpgCaptureCancelProcessEvent != nullptr) {
+		::CloseHandle(m_hEpgCaptureCancelProcessEvent);
+		m_hEpgCaptureCancelProcessEvent = nullptr;
+	}
+}
+
+
+void CALLBACK CMainWindow::EpgCaptureCancelCallback(PVOID pParameter, BOOLEAN)
+{
+	::PostMessage(static_cast<HWND>(pParameter), WM_APP_EPGCAPTURECANCEL, 0, 0);
+}
+
+
 CMainWindow::CEpgCaptureEventHandler::CEpgCaptureEventHandler(CMainWindow *pMainWindow)
 	: m_pMainWindow(pMainWindow)
 {
@@ -6979,6 +7064,9 @@ void CMainWindow::CEpgCaptureEventHandler::OnBeginCapture(
 
 	m_pMainWindow->SuspendViewer(ResumeInfo::ViewerSuspendFlag::EPGUpdate);
 
+	if (m_pMainWindow->m_App.CmdLineOptions.m_fEpgCapture)
+		m_pMainWindow->BeginEpgCaptureCancelWatch();
+
 	m_pMainWindow->m_App.Epg.ProgramGuide.OnEpgCaptureBegin();
 }
 
@@ -6989,6 +7077,8 @@ void CMainWindow::CEpgCaptureEventHandler::OnEndCapture(CEpgCaptureManager::EndF
 	int OldPriority;
 
 	m_pMainWindow->m_Timer.EndTimer(TIMER_ID_PROGRAMGUIDEUPDATE);
+
+	m_pMainWindow->EndEpgCaptureCancelWatch();
 
 	if (m_pMainWindow->m_pCore->GetStandby()) {
 		hThread = ::GetCurrentThread();
@@ -7028,7 +7118,8 @@ void CMainWindow::CEpgCaptureEventHandler::OnEndCapture(CEpgCaptureManager::EndF
 				!= CEpgCaptureManager::Result::Completed
 				&& App.GetExitCode() == 0)
 			App.SetExitCode(3);
-		App.Exit();
+		if (!m_pMainWindow->m_fClosing)
+			App.Exit();
 	}
 }
 

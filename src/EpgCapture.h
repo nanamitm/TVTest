@@ -76,6 +76,8 @@ namespace TVTest
 			Canceled,
 		};
 		Result GetLastResult() const { return m_LastResult; }
+		void SetTimeout(DWORD Timeout) { m_Timeout = Timeout; }
+		DWORD GetTimeout() const { return m_Timeout; }
 		bool ProcessCapture();
 		void SetEventHandler(CEventHandler *pEventHandler);
 		int GetChannelCount() const { return static_cast<int>(m_ChannelList.size()); }
@@ -99,7 +101,9 @@ namespace TVTest
 		Result m_LastResult = Result::None;
 		int m_CurChannel = -1;
 		std::vector<ChannelGroup> m_ChannelList;
+		DWORD m_Timeout = 0;
 		Util::CClock m_AccumulateClock;
+		Util::CClock m_TotalClock;
 		bool m_fChannelChanging = false;
 		CEventHandler *m_pEventHandler = nullptr;
 	};

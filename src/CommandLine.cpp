@@ -436,6 +436,7 @@ static bool GetIniEntry(LPCWSTR pszText, CCommandLineOptions::IniEntry *pEntry)
 	/noepg          EPG情報の取得を行わない
 	/epgcapture     EPG情報をバックグラウンドで取得する
 	/epgcaptureexit EPG情報の取得完了時に終了する
+	/epgcapturetimeout EPG情報の取得の制限時間
 	/epg            EPG番組表を表示する
 	/epgonly        EPG番組表のみ表示する
 	/epgtuner       EPG番組表のデフォルトチューナー
@@ -464,6 +465,7 @@ void CCommandLineOptions::Parse(LPCWSTR pszCmdLine)
 					&& !Args.GetOption(TEXT("epg"), &m_fShowProgramGuide)
 					&& !Args.GetOption(TEXT("epgcapture"), &m_fEpgCapture)
 					&& !Args.GetOption(TEXT("epgcaptureexit"), &m_fEpgCaptureExit)
+					&& !Args.GetDurationOption(TEXT("epgcapturetimeout"), &m_EpgCaptureTimeout)
 					&& !Args.GetOption(TEXT("epgonly"), &m_fProgramGuideOnly)
 					&& !Args.GetOption(TEXT("epgspace"), &m_ProgramGuideSpace)
 					&& !Args.GetOption(TEXT("epgtuner"), &m_ProgramGuideTuner)

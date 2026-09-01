@@ -51,6 +51,7 @@ namespace TVTest
 		bool m_fNoEpg = false;
 		bool m_fEpgCapture = false;
 		bool m_fEpgCaptureExit = false;
+		int m_EpgCaptureTimeout = 0;
 		bool m_f1Seg = false;
 		bool m_fJumpList = false;
 		int m_TvRockDID = -1;
