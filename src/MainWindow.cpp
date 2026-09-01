@@ -7006,7 +7006,9 @@ void CMainWindow::CEpgCaptureEventHandler::OnEndCapture(CEpgCaptureManager::EndF
 			App.Core.CloseTuner();
 	} else {
 		::SetCursor(::LoadCursor(nullptr, IDC_ARROW));
-		if (!!(Flags & CEpgCaptureManager::EndFlag::Resume))
+		if (App.CmdLineOptions.m_fEpgCaptureExit)
+			App.Core.CloseTuner();
+		else if (!!(Flags & CEpgCaptureManager::EndFlag::Resume))
 			m_pMainWindow->ResumeChannel();
 		if (m_pMainWindow->IsPanelVisible()
 				&& App.Panel.Form.GetCurPageID() == PANEL_ID_CHANNEL)
@@ -7016,8 +7018,15 @@ void CMainWindow::CEpgCaptureEventHandler::OnEndCapture(CEpgCaptureManager::EndF
 	m_pMainWindow->ResumeViewer(ResumeInfo::ViewerSuspendFlag::EPGUpdate);
 
 	if (App.CmdLineOptions.m_fEpgCaptureExit) {
+		if (!App.EpgSyncClient.Flush(2 * 60 * 1000)) {
+			App.AddLog(
+				CLogItem::LogType::Error,
+				TEXT("EPG 共有サーバへの送信を完了できませんでした。"));
+			App.SetExitCode(4);
+		}
 		if (App.EpgCaptureManager.GetLastResult()
-				!= CEpgCaptureManager::Result::Completed)
+				!= CEpgCaptureManager::Result::Completed
+				&& App.GetExitCode() == 0)
 			App.SetExitCode(3);
 		App.Exit();
 	}

@@ -84,6 +84,12 @@ namespace TVTest
 		/** 送信対象の探索を促す(EPG 取得完了時など) */
 		void RequestSend();
 
+		/** 保留中の番組情報を送信し、完了するまで待つ
+
+		EPG 共有が無効なら成功とする。
+		*/
+		bool Flush(DWORD Timeout);
+
 		const SyncSettings &GetSettings() const { return m_Settings; }
 
 	private:

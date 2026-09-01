@@ -27,6 +27,7 @@
 #include "LibISDB/LibISDB/EPG/EPGDataSerializer.hpp"
 #include <winhttp.h>
 #include <process.h>
+#include <atomic>
 #include <mutex>
 #include <vector>
 #include <set>
@@ -684,7 +685,9 @@ public:
 
 		m_hStopEvent = ::CreateEvent(nullptr, TRUE, FALSE, nullptr);
 		m_hSendEvent = ::CreateEvent(nullptr, FALSE, FALSE, nullptr);
-		if ((m_hStopEvent == nullptr) || (m_hSendEvent == nullptr)) {
+		m_hSendCompleteEvent = ::CreateEvent(nullptr, FALSE, FALSE, nullptr);
+		if ((m_hStopEvent == nullptr) || (m_hSendEvent == nullptr)
+				|| (m_hSendCompleteEvent == nullptr)) {
 			Stop();
 			return false;
 		}
@@ -734,6 +737,7 @@ public:
 
 		CloseHandleSafe(&m_hStopEvent);
 		CloseHandleSafe(&m_hSendEvent);
+		CloseHandleSafe(&m_hSendCompleteEvent);
 	}
 
 	bool IsRunning() const { return m_hSendThread != nullptr; }
@@ -742,8 +746,35 @@ public:
 
 	void RequestSend()
 	{
-		if (m_hSendEvent != nullptr)
+		if (m_hSendEvent != nullptr) {
+			m_SendRequestSerial.fetch_add(1, std::memory_order_release);
 			::SetEvent(m_hSendEvent);
+		}
+	}
+
+	bool Flush(DWORD Timeout)
+	{
+		if ((m_hSendEvent == nullptr) || (m_hSendCompleteEvent == nullptr))
+			return false;
+
+		const unsigned long long Target =
+			m_SendRequestSerial.fetch_add(1, std::memory_order_acq_rel) + 1;
+		::SetEvent(m_hSendEvent);
+
+		const DWORD Start = ::GetTickCount();
+
+		for (;;) {
+			if (m_SendCompleteSerial.load(std::memory_order_acquire) >= Target)
+				return !HasUpdatedServices();
+
+			const DWORD Elapsed = ::GetTickCount() - Start;
+			if (Elapsed >= Timeout)
+				return false;
+
+			if (::WaitForSingleObject(m_hSendCompleteEvent, Timeout - Elapsed)
+					!= WAIT_OBJECT_0)
+				return false;
+		}
 	}
 
 // LibISDB::EPGDatabase::EventListener
@@ -798,8 +829,28 @@ private:
 			if (Result == WAIT_OBJECT_0)
 				break;
 
+			const unsigned long long Target =
+				m_SendRequestSerial.load(std::memory_order_acquire);
 			PushUpdatedServices();
+			m_SendCompleteSerial.store(Target, std::memory_order_release);
+			::SetEvent(m_hSendCompleteEvent);
 		}
+	}
+
+	bool HasUpdatedServices() const
+	{
+		LibISDB::EPGDatabase::ServiceList ServiceList;
+
+		if (!m_pEPGDatabase->GetServiceList(&ServiceList))
+			return true;
+
+		for (const LibISDB::EPGDatabase::ServiceInfo &Service : ServiceList) {
+			if (m_pEPGDatabase->IsServiceUpdated(
+					Service.NetworkID, Service.TransportStreamID, Service.ServiceID))
+				return true;
+		}
+
+		return false;
 	}
 
 	void PushServiceMetadata()
@@ -1425,6 +1476,9 @@ private:
 	HANDLE m_hReceiveThread = nullptr;
 	HANDLE m_hStopEvent = nullptr;
 	HANDLE m_hSendEvent = nullptr;
+	HANDLE m_hSendCompleteEvent = nullptr;
+	std::atomic<unsigned long long> m_SendRequestSerial{0};
+	std::atomic<unsigned long long> m_SendCompleteSerial{0};
 	bool m_fLogged = false;
 };
 
@@ -1495,6 +1549,15 @@ void CEpgSyncClient::RequestSend()
 {
 	if (m_Impl)
 		m_Impl->RequestSend();
+}
+
+
+bool CEpgSyncClient::Flush(DWORD Timeout)
+{
+	if (!m_Settings.IsValid())
+		return true;
+
+	return m_Impl && m_Impl->Flush(Timeout);
 }
 
 
