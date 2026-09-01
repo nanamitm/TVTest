@@ -1251,6 +1251,11 @@ int CAppMain::Main(HINSTANCE hInstance, LPCTSTR pszCmdLine, int nCmdShow)
 				CmdLineOptions.m_EpgCaptureChannels);
 			fFilterError = true;
 		}
+		if (CmdLineOptions.m_EpgCaptureIdle > 0) {
+			EpgCaptureManager.SetIdleTimeout(
+				static_cast<DWORD>(CmdLineOptions.m_EpgCaptureIdle) * 1000);
+		}
+
 		if (!CmdLineOptions.m_EpgCaptureReport.empty())
 			EpgCaptureManager.SetReportFileName(CmdLineOptions.m_EpgCaptureReport.c_str());
 

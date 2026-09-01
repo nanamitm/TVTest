@@ -106,6 +106,11 @@ h/m/s で 時間/分/秒 を指定することも可能です。詳細は /recdu
 同じトランスポンダのチャンネルは分割されずに同じ側にまとめられます。<br>
 /epgcapturech と併用した場合は、絞り込んだ後のチャンネルが分割されます。<br>
 /epgcapture と共に指定した場合のみ有効です。</td></tr>
+<tr><td>/epgcaptureidle</td><td>EPG 情報が増えない場合に次のチャンネルへ移るまでの時間 (e.g. /epgcaptureidle 90s)<br>
+時間の指定方法は /recduration と同じです。<br>
+番組表が揃ったと判定できないストリームでも、これ以上増えなくなった時点で次に進めます。<br>
+0 又は未指定の場合は、チャンネルごとの制限時間まで待ちます。<br>
+/epgcapture と共に指定した場合のみ有効です。</td></tr>
 <tr><td>/epgcapturereport</td><td>EPG 情報の取得結果の書き出し先 (e.g. /epgcapturereport "C:\TVTest\capture.csv")<br>
 巡回したチャンネルを1行ずつ追記します。<br>
 形式は「日時,チューニング空間,チャンネル,完了したか(0/1),所要秒数,チャンネル数」です。<br>

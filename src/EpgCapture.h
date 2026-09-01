@@ -96,6 +96,8 @@ namespace TVTest
 		Result GetLastResult() const { return m_LastResult; }
 		void SetTimeout(DWORD Timeout) { m_Timeout = Timeout; }
 		DWORD GetTimeout() const { return m_Timeout; }
+		void SetIdleTimeout(DWORD Timeout) { m_IdleTimeout = Timeout; }
+		DWORD GetIdleTimeout() const { return m_IdleTimeout; }
 		bool ProcessCapture();
 		void SetChannelFilter(const ChannelFilter &Filter) { m_ChannelFilter = Filter; }
 		void SetReportFileName(LPCTSTR pszFileName) { StringUtility::Assign(m_ReportFileName, pszFileName); }
@@ -117,6 +119,8 @@ namespace TVTest
 
 		bool NextChannel();
 		void WriteReport(const ChannelGroup &ChGroup, bool fComplete, DWORD Span);
+		unsigned int GetScheduleProgress(const ChannelGroup &ChGroup) const;
+		void LogScheduleStatus(const ChannelGroup &ChGroup) const;
 
 		bool m_fCapturing = false;
 		bool m_fAllChannelsComplete = true;
@@ -126,7 +130,10 @@ namespace TVTest
 		ChannelFilter m_ChannelFilter;
 		String m_ReportFileName;
 		DWORD m_Timeout = 0;
+		DWORD m_IdleTimeout = 0;
+		unsigned int m_Progress = 0;
 		Util::CClock m_AccumulateClock;
+		Util::CClock m_ProgressClock;
 		Util::CClock m_TotalClock;
 		bool m_fChannelChanging = false;
 		CEventHandler *m_pEventHandler = nullptr;

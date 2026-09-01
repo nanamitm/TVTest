@@ -20,6 +20,7 @@
 
 #include "stdafx.h"
 #include "TVTest.h"
+#include <bit>
 #include "AppMain.h"
 #include "EpgCapture.h"
 #include "Common/DebugDef.h"
@@ -366,10 +367,25 @@ bool CEpgCaptureManager::ProcessCapture()
 			Timeout = 360000;
 		else
 			Timeout = 120000;
-		if (m_AccumulateClock.GetSpan() < Timeout)
-			return false;
+		const unsigned int Progress = GetScheduleProgress(CurChGroup);
+		if (Progress != m_Progress) {
+			m_Progress = Progress;
+			m_ProgressClock.Start();
+		}
+
+		if (m_AccumulateClock.GetSpan() < Timeout) {
+			// 完了と判定できないストリームでは待つだけ無駄なので、
+			// 番組表が増えなくなった時点で切り上げる
+			if ((m_IdleTimeout == 0) || (Progress == 0)
+					|| (m_ProgressClock.GetSpan() < m_IdleTimeout))
+				return false;
+			GetAppClass().AddLog(
+				TEXT("番組表の情報が {} 秒増えないため、次のチャンネルへ移ります。"),
+				m_IdleTimeout / 1000);
+		}
 		TRACE(TEXT("EPG schedule timeout\n"));
 		m_fAllChannelsComplete = false;
+		LogScheduleStatus(CurChGroup);
 	}
 
 	WriteReport(CurChGroup, fComplete, m_AccumulateClock.GetSpan());
@@ -380,6 +396,82 @@ bool CEpgCaptureManager::ProcessCapture()
 	NextChannel();
 
 	return true;
+}
+
+
+// EIT [schedule] をどこまで受信できたかを表す値
+// (増えなくなったことを見るためのもので、値そのものに意味はない)
+unsigned int CEpgCaptureManager::GetScheduleProgress(const ChannelGroup &ChGroup) const
+{
+	const LibISDB::EPGDatabase &EPGDatabase = GetAppClass().EPGDatabase;
+	unsigned int Progress = 0;
+
+	for (int i = 0; i < ChGroup.ChannelList.NumChannels(); i++) {
+		const CChannelInfo *pChannelInfo = ChGroup.ChannelList.GetChannelInfo(i);
+
+		for (int j = 0; j < 2; j++) {
+			LibISDB::EPGDatabase::ScheduleStatus Status;
+
+			if (EPGDatabase.GetScheduleStatus(
+					pChannelInfo->GetNetworkID(),
+					pChannelInfo->GetTransportStreamID(),
+					pChannelInfo->GetServiceID(),
+					j != 0, &Status)) {
+				for (int k = 0; k < Status.TableCount; k++) {
+					Progress +=
+						std::popcount(Status.Tables[k].ReceivedSegments) +
+						std::popcount(Status.Tables[k].CompleteSegments);
+				}
+			}
+		}
+	}
+
+	return Progress;
+}
+
+
+// 完了しなかったチャンネルについて、どのテーブルがどこまで来たかを残す
+// (ストリーム側の問題を切り分けるため)
+void CEpgCaptureManager::LogScheduleStatus(const ChannelGroup &ChGroup) const
+{
+	CAppMain &App = GetAppClass();
+	const LibISDB::EPGDatabase &EPGDatabase = App.EPGDatabase;
+
+	for (int i = 0; i < ChGroup.ChannelList.NumChannels(); i++) {
+		const CChannelInfo *pChannelInfo = ChGroup.ChannelList.GetChannelInfo(i);
+		String Text;
+
+		for (int j = 0; j < 2; j++) {
+			LibISDB::EPGDatabase::ScheduleStatus Status;
+
+			if (!EPGDatabase.GetScheduleStatus(
+					pChannelInfo->GetNetworkID(),
+					pChannelInfo->GetTransportStreamID(),
+					pChannelInfo->GetServiceID(),
+					j != 0, &Status)
+					|| (Status.TableCount == 0))
+				continue;
+
+			Text += (j == 0) ? TEXT(" basic") : TEXT(" / extended");
+			for (int k = 0; k < Status.TableCount; k++) {
+				TCHAR szText[64];
+
+				StringFormat(
+					szText, TEXT(" 表{} {}/{}"),
+					k,
+					std::popcount(Status.Tables[k].CompleteSegments),
+					std::popcount(Status.Tables[k].ReceivedSegments));
+				Text += szText;
+			}
+		}
+
+		if (Text.empty())
+			Text = TEXT(" 受信なし");
+
+		App.AddLog(
+			TEXT("番組表が揃いませんでした : {} (SID {}) :{} (揃ったセグメント数/受信したセグメント数 : 全32)"),
+			pChannelInfo->GetName(), pChannelInfo->GetServiceID(), Text);
+	}
 }
 
 
@@ -463,6 +555,8 @@ bool CEpgCaptureManager::NextChannel()
 		if (fOK) {
 			m_CurChannel = static_cast<int>(i);
 			m_AccumulateClock.Start();
+			m_Progress = 0;
+			m_ProgressClock.Start();
 			if (m_pEventHandler != nullptr)
 				m_pEventHandler->OnChannelChanged();
 			return true;
