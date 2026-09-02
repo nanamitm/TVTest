@@ -24,6 +24,8 @@
 #define IDI_TASKBAR_RECORDING       4
 #define IDI_PROGRAMGUIDE            5
 #define IDI_SEARCH                  6
+#define IDI_TRAY_EPGCAPTURE         7
+#define IDI_TASKBAR_EPGCAPTURE      8
 
 #define IDI_TASK_FULLSCREEN         31000
 #define IDI_TASK_DISABLEVIEWER      31001

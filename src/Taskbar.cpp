@@ -170,6 +170,29 @@ bool CTaskbarManager::SetRecordingStatus(bool fRecording)
 }
 
 
+bool CTaskbarManager::SetEpgCaptureStatus(bool fCapturing)
+{
+	if (m_pTaskbarList != nullptr) {
+		if (fCapturing) {
+			const HICON hico = static_cast<HICON>(
+				::LoadImage(
+					GetAppClass().GetResourceInstance(),
+					MAKEINTRESOURCE(IDI_TASKBAR_EPGCAPTURE),
+					IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR));
+
+			if (hico == nullptr)
+				return false;
+			m_pTaskbarList->SetOverlayIcon(m_hwnd, hico, TEXT("番組表取得中"));
+			::DestroyIcon(hico);
+		} else {
+			m_pTaskbarList->SetOverlayIcon(m_hwnd, nullptr, nullptr);
+		}
+		return true;
+	}
+	return false;
+}
+
+
 bool CTaskbarManager::SetProgress(int Pos, int Max)
 {
 	if (m_pTaskbarList != nullptr) {

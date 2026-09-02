@@ -148,9 +148,16 @@ bool CTaskTrayManager::ChangeTrayIcon()
 
 HICON CTaskTrayManager::LoadTrayIcon() const
 {
+	// 録画と番組表の取得は同時に起きないが、起きた場合は録画を優先する
+	int Icon = IDI_TRAY;
+	if (!!(m_Status & StatusFlag::Recording))
+		Icon = IDI_TRAY_RECORDING;
+	else if (!!(m_Status & StatusFlag::EpgCapture))
+		Icon = IDI_TRAY_EPGCAPTURE;
+
 	return LoadIconStandardSize(
 		GetAppClass().GetResourceInstance(),
-		MAKEINTRESOURCE(!!(m_Status & StatusFlag::Recording) ? IDI_TRAY_RECORDING : IDI_TRAY),
+		MAKEINTRESOURCE(Icon),
 		IconSizeType::Small);
 }
 
@@ -186,7 +193,7 @@ bool CTaskTrayManager::SetStatus(StatusFlag Status, StatusFlag Mask)
 		const bool fNeedTrayIconOld = NeedTrayIcon();
 		bool fChangeIcon = false;
 
-		if (!!(StatusDiff & StatusFlag::Recording))
+		if (!!(StatusDiff & (StatusFlag::Recording | StatusFlag::EpgCapture)))
 			fChangeIcon = true;
 		if (!!(StatusDiff & StatusFlag::Minimized)) {
 			if (m_hwnd != nullptr && m_fMinimizeToTray)

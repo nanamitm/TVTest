@@ -612,6 +612,8 @@ namespace TVTest
 		HANDLE m_hEpgCaptureCancelProcessEvent = nullptr;
 		HANDLE m_hEpgCaptureCancelProcessWait = nullptr;
 
+		void SetEpgCaptureIndicator(bool fCapturing);
+		void UpdateEpgCaptureIndicator();
 		bool BeginEpgCaptureCancelWatch();
 		void EndEpgCaptureCancelWatch();
 		static void CALLBACK EpgCaptureCancelCallback(PVOID pParameter, BOOLEAN TimerOrWaitFired);

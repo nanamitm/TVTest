@@ -45,6 +45,7 @@ namespace TVTest
 		void Finalize();
 		bool HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
 		bool SetRecordingStatus(bool fRecording);
+		bool SetEpgCaptureStatus(bool fCapturing);
 		bool SetProgress(int Pos, int Max);
 		bool EndProgress();
 		bool ReinitializeJumpList();

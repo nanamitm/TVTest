@@ -6981,6 +6981,42 @@ bool CMainWindow::CCursorTracker::OnCursorMove(int x, int y)
 }
 
 
+// 番組表の取得中であることを、録画中と同じようにタスクバーと通知領域に出す
+void CMainWindow::SetEpgCaptureIndicator(bool fCapturing)
+{
+	m_App.TaskbarManager.SetEpgCaptureStatus(fCapturing);
+	m_App.TaskTrayManager.SetStatus(
+		fCapturing ?
+			CTaskTrayManager::StatusFlag::EpgCapture :
+			CTaskTrayManager::StatusFlag::None,
+		CTaskTrayManager::StatusFlag::EpgCapture);
+
+	if (fCapturing) {
+		UpdateEpgCaptureIndicator();
+	} else {
+		m_App.UICore.EndProgress();
+		m_App.TaskTrayManager.SetTipText(nullptr);
+	}
+}
+
+
+// 何チャンネル目まで進んだかを、タスクバーの進捗と通知領域の説明に反映する
+void CMainWindow::UpdateEpgCaptureIndicator()
+{
+	const int Channel = m_App.EpgCaptureManager.GetCurChannel();
+	const int NumChannels = m_App.EpgCaptureManager.GetChannelCount();
+
+	if ((Channel < 0) || (NumChannels < 1))
+		return;
+
+	m_App.UICore.SetProgress(Channel + 1, NumChannels);
+
+	String Text;
+	StringFormat(&Text, TEXT("{} - 番組表の取得中 ({}/{})"), APP_NAME, Channel + 1, NumChannels);
+	m_App.TaskTrayManager.SetTipText(Text.c_str());
+}
+
+
 // 外部プロセスから番組表の取得を中止するためのイベントを作成する
 bool CMainWindow::BeginEpgCaptureCancelWatch()
 {
@@ -7067,6 +7103,8 @@ void CMainWindow::CEpgCaptureEventHandler::OnBeginCapture(
 	if (m_pMainWindow->m_App.CmdLineOptions.m_fEpgCapture)
 		m_pMainWindow->BeginEpgCaptureCancelWatch();
 
+	m_pMainWindow->SetEpgCaptureIndicator(true);
+
 	m_pMainWindow->m_App.Epg.ProgramGuide.OnEpgCaptureBegin();
 }
 
@@ -7079,6 +7117,7 @@ void CMainWindow::CEpgCaptureEventHandler::OnEndCapture(CEpgCaptureManager::EndF
 	m_pMainWindow->m_Timer.EndTimer(TIMER_ID_PROGRAMGUIDEUPDATE);
 
 	m_pMainWindow->EndEpgCaptureCancelWatch();
+	m_pMainWindow->SetEpgCaptureIndicator(false);
 
 	if (m_pMainWindow->m_pCore->GetStandby()) {
 		hThread = ::GetCurrentThread();
@@ -7133,6 +7172,8 @@ void CMainWindow::CEpgCaptureEventHandler::OnChannelChanged()
 		App.EpgCaptureManager.GetCurChannel(),
 		App.EpgCaptureManager.GetChannelCount(),
 		App.EpgCaptureManager.GetRemainingTime());
+
+	m_pMainWindow->UpdateEpgCaptureIndicator();
 }
 
 void CMainWindow::CEpgCaptureEventHandler::OnChannelEnd(bool fComplete)

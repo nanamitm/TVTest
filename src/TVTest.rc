@@ -35,6 +35,8 @@ IDI_ICON                    ICON "TVTest.ico"
 IDI_TRAY                    ICON "Tray.ico"
 IDI_TRAY_RECORDING          ICON "Tray_Recording.ico"
 IDI_TASKBAR_RECORDING       ICON "Taskbar_Recording.ico"
+IDI_TRAY_EPGCAPTURE         ICON "Tray_EpgCapture.ico"
+IDI_TASKBAR_EPGCAPTURE      ICON "Taskbar_EpgCapture.ico"
 IDI_PROGRAMGUIDE            ICON "ProgramGuide.ico"
 IDI_SEARCH                  ICON "Search.ico"
 

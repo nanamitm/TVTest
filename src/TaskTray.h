@@ -29,10 +29,11 @@ namespace TVTest
 	{
 	public:
 		enum class StatusFlag : unsigned int {
-			None      = 0x0000U,
-			Recording = 0x0001U,
-			Minimized = 0x0002U,
-			Standby   = 0x0004U,
+			None       = 0x0000U,
+			Recording  = 0x0001U,
+			Minimized  = 0x0002U,
+			Standby    = 0x0004U,
+			EpgCapture = 0x0008U,
 			TVTEST_ENUM_FLAGS_TRAILER
 		};
 
