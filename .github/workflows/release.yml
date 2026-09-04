@@ -19,8 +19,8 @@ on:
       archive:
         description: '書庫の形式'
         type: choice
-        options: ['7z', bz2]
-        default: '7z'
+        options: [zip, '7z', bz2]
+        default: zip
 
 permissions:
   contents: write
@@ -28,7 +28,7 @@ permissions:
 env:
   CRT_TYPE: ${{ inputs.crt_type || 'static' }}
   PLUGINS: ${{ inputs.plugins || 'useful' }}
-  ARCHIVE: ${{ inputs.archive || '7z' }}
+  ARCHIVE: ${{ inputs.archive || 'zip' }}
 
 jobs:
   build:
@@ -116,6 +116,7 @@ jobs:
         with:
           name: TVTest-${{ matrix.arch }}
           path: |
+            package/*.zip
             package/*.7z
             package/*.tar.bz2
           if-no-files-found: error

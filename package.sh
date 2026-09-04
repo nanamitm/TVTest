@@ -9,7 +9,7 @@
 ## Output directory
 ##  -o dir
 ## Archive
-##  -r 7z|bz2
+##  -r 7z|zip|bz2
 ## Target
 ##  -t debug|release
 
@@ -146,21 +146,47 @@ git_hash=$(git rev-parse --short HEAD)
 
 archive_name=${out_dir}/TVTest_${version}${git_hash}_${arch}
 
-if [ "$archive" = 7z ]
-then
-    ## Archive with 7-Zip
+find_7z()
+{
     sevenz_exe='/c/Program Files/7-Zip/7z.exe'
     if [ ! -f "$sevenz_exe" ]
     then
         sevenz_exe='/c/Program Files (x86)/7-Zip/7z.exe'
         if [ ! -f "$sevenz_exe" ]
         then
-            echo "Unable to find 7z.exe" >&2
-            exit 1
+            return 1
         fi
+    fi
+    return 0
+}
+
+if [ "$archive" = 7z ]
+then
+    ## Archive with 7-Zip
+    if ! find_7z
+    then
+        echo "Unable to find 7z.exe" >&2
+        exit 1
     fi
 
     "$sevenz_exe" a "${archive_name}.7z" "./${dst_dir}/\*" -mx=9 -ms=on -myx=9
+elif [ "$archive" = zip ]
+then
+    ## Archive with zip
+    rm -f "${archive_name}.zip"
+    if find_7z
+    then
+        "$sevenz_exe" a -tzip "${archive_name}.zip" "./${dst_dir}/\*" -mx=9
+    elif command -v zip > /dev/null
+    then
+        (cd "${dst_dir}" && zip -9 -r - .) > "${archive_name}.zip"
+    elif command -v powershell > /dev/null
+    then
+        powershell -NoProfile -Command "Compress-Archive -Path '${dst_dir}/*' -DestinationPath '${archive_name}.zip' -CompressionLevel Optimal -Force"
+    else
+        echo "Unable to find an archiver for zip" >&2
+        exit 1
+    fi
 elif [ "$archive" = bz2 ]
 then
     ## Archive with bzip2
