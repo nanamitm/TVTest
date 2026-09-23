@@ -37,7 +37,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 同梱の FFmpeg のインポートライブラリが x64 のみのため x64 のみビルドする
+        # 同梱の FFmpeg の静的ライブラリが x64 のみのため x64 のみビルドする
         include:
           - arch: x64
             platform: x64
