@@ -1067,9 +1067,6 @@ private:
 				return;
 			}
 
-			const unsigned long long PushedVersion =
-				GetLocalVersion(Service.NetworkID, Service.TransportStreamID, Service.ServiceID);
-
 			LibISDB::MemoryStream Stream;
 
 			if (!LibISDB::EPGDataSerializer::SerializeService(
@@ -1107,13 +1104,20 @@ private:
 				return;
 			}
 
-			// 送信中に新たな受信があった場合は更新済みのままにしておく
-			const unsigned long long CurrentVersion =
-				GetLocalVersion(Service.NetworkID, Service.TransportStreamID, Service.ServiceID);
-
-			if (CurrentVersion == PushedVersion) {
-				m_pEPGDatabase->ResetServiceUpdated(
-					Service.NetworkID, Service.TransportStreamID, Service.ServiceID);
+			// TOT の時刻は更新ごとに変わるとは限らないので、送信した内容と比較する。
+			// 比較からフラグ解除までを同じロック内で行い、新しい受信を消さない。
+			{
+				LibISDB::BlockLock Lock(m_pEPGDatabase->GetLock());
+				LibISDB::MemoryStream CurrentStream;
+				if (LibISDB::EPGDataSerializer::SerializeService(
+						*m_pEPGDatabase,
+						Service.NetworkID, Service.TransportStreamID, Service.ServiceID,
+						CurrentStream)
+						&& CurrentStream.GetDataSize() == Stream.GetDataSize()
+						&& std::memcmp(CurrentStream.GetData(), Stream.GetData(), Stream.GetDataSize()) == 0) {
+					m_pEPGDatabase->ResetServiceUpdated(
+						Service.NetworkID, Service.TransportStreamID, Service.ServiceID);
+				}
 			}
 
 			m_fLogged = false;
@@ -1385,15 +1389,6 @@ private:
 			*pVersion = Version;
 		if (pEventCount != nullptr)
 			*pEventCount = EventCount;
-	}
-
-	unsigned long long GetLocalVersion(WORD NetworkID, WORD TransportStreamID, WORD ServiceID) const
-	{
-		unsigned long long Version = 0;
-
-		GetLocalState(NetworkID, TransportStreamID, ServiceID, &Version, nullptr);
-
-		return Version;
 	}
 
 	/** サーバ側の情報を取り込むべきか
