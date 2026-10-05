@@ -818,8 +818,8 @@ private:
 			PushLogos();
 
 		// まずサーバの持ち物を取り込む
-		if (!IsStopped())
-			PullAll();
+		if (!IsStopped() && !PullAll())
+			m_ResyncRequested.store(true, std::memory_order_release);
 
 		while (!IsStopped()) {
 			const HANDLE Handles[] = {m_hStopEvent, m_hSendEvent};
@@ -831,6 +831,11 @@ private:
 
 			const unsigned long long Target =
 				m_SendRequestSerial.load(std::memory_order_acquire);
+			if (m_ResyncRequested.exchange(false, std::memory_order_acq_rel)) {
+				// 通知が欠落した期間の内容は、時刻や番組数が同じでも取り直す。
+				if (!PullAll(true))
+					m_ResyncRequested.store(true, std::memory_order_release);
+			}
 			PushUpdatedServices();
 			m_SendCompleteSerial.store(Target, std::memory_order_release);
 			::SetEvent(m_hSendCompleteEvent);
@@ -989,20 +994,21 @@ private:
 	}
 
 	/** サーバにあって自分に無い(または自分より新しい)サービスを取り込む */
-	void PullAll()
+	bool PullAll(bool Force = false)
 	{
 		std::vector<RemoteService> RemoteList;
 
 		if (!FetchServiceList(&m_SendClient, &RemoteList))
-			return;
+			return false;
 
 		int Merged = 0;
+		bool fSucceeded = true;
 
 		for (const RemoteService &Remote : RemoteList) {
 			if (IsStopped())
 				break;
 
-			if (!ShouldPull(
+			if (!Force && !ShouldPull(
 					Remote.NetworkID, Remote.TransportStreamID, Remote.ServiceID,
 					Remote.Version, Remote.EventCount))
 				continue;
@@ -1011,11 +1017,15 @@ private:
 					&m_SendClient,
 					Remote.NetworkID, Remote.TransportStreamID, Remote.ServiceID))
 				Merged++;
+			else
+				fSucceeded = false;
 		}
 
 		GetAppClass().AddLog(
 			TEXT("EPG 共有サーバから {} / {} サービスを取り込みました。"),
 			Merged, RemoteList.size());
+
+		return fSucceeded && !IsStopped();
 	}
 
 	/** 自分が受信して更新されたサービスをサーバへ送る */
@@ -1136,6 +1146,10 @@ private:
 
 		while (!IsStopped()) {
 			if (m_ReceiveClient.BeginStream(TEXT("/api/events?format=text"), m_CommonHeaders)) {
+				// ストリーム確立後に一覧を取得し、切断中の更新を回収する。
+				// HTTP 送信クライアントは送信スレッドだけで使用する。
+				m_ResyncRequested.store(true, std::memory_order_release);
+				RequestSend();
 				Interval = RECONNECT_INTERVAL_MIN;
 				ReadEventStream();
 				m_ReceiveClient.EndStream();
@@ -1493,6 +1507,7 @@ private:
 	HANDLE m_hSendCompleteEvent = nullptr;
 	std::atomic<unsigned long long> m_SendRequestSerial{0};
 	std::atomic<unsigned long long> m_SendCompleteSerial{0};
+	std::atomic<bool> m_ResyncRequested{false};
 	bool m_fLogged = false;
 };
 
