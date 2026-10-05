@@ -1112,6 +1112,10 @@ private:
 				String MatchHeader;
 				StringFormat(&MatchHeader, TEXT("If-Match: {}\r\n"), ETag);
 				Headers += MatchHeader;
+			} else {
+				// サーバに無いものとして新規作成する。
+				// 他の機が先に作成していた場合は 412 が返るので、取り直してやり直す。
+				Headers += TEXT("If-None-Match: *\r\n");
 			}
 
 			CHttpClient::Response Response;
