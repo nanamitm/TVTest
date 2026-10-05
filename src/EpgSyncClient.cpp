@@ -705,6 +705,10 @@ public:
 		// 再開時に前回の状態を持ち越さない
 		m_ResyncRequested.store(false, std::memory_order_relaxed);
 		m_InitialPullStarted.store(false, std::memory_order_relaxed);
+		{
+			std::lock_guard<std::mutex> Lock(m_ETagLock);
+			m_KnownETags.clear();
+		}
 
 		m_hSendThread = reinterpret_cast<HANDLE>(
 			::_beginthreadex(nullptr, 0, SendThread, this, 0, nullptr));
@@ -1018,10 +1022,19 @@ private:
 			if (IsStopped())
 				break;
 
-			if (!Force && !ShouldPull(
+			if (Force) {
+				// 前回照合したときから内容が変わっていなければ取り直さない
+				if (IsKnownETag(
+						Remote.NetworkID, Remote.TransportStreamID, Remote.ServiceID, Remote.ETag))
+					continue;
+			} else if (!ShouldPull(
 					Remote.NetworkID, Remote.TransportStreamID, Remote.ServiceID,
-					Remote.Version, Remote.EventCount))
+					Remote.Version, Remote.EventCount)) {
+				// 取り込む必要が無いと判断した内容として覚えておく
+				SetKnownETag(
+					Remote.NetworkID, Remote.TransportStreamID, Remote.ServiceID, Remote.ETag);
 				continue;
+			}
 
 			if (PullService(
 					&m_SendClient,
@@ -1120,6 +1133,13 @@ private:
 					TEXT("EPG 共有サーバへの送信が拒否されました (HTTP {})。"),
 					Response.StatusCode);
 				return;
+			}
+
+			// 200 ならサーバの内容は送信したものと同じになっている
+			if (Response.StatusCode == 200) {
+				SetKnownETag(
+					Service.NetworkID, Service.TransportStreamID, Service.ServiceID,
+					Response.ETag);
 			}
 
 			// TOT の時刻は更新ごとに変わるとは限らないので、送信した内容と比較する。
@@ -1246,8 +1266,16 @@ private:
 				static_cast<WORD>(NetworkID),
 				static_cast<WORD>(TransportStreamID),
 				static_cast<WORD>(ServiceID),
-				Version, static_cast<unsigned int>(EventCount)))
+				Version, static_cast<unsigned int>(EventCount))) {
+			if ((Fields.size() >= 7) && (Fields[6] != TEXT("-"))) {
+				SetKnownETag(
+					static_cast<WORD>(NetworkID),
+					static_cast<WORD>(TransportStreamID),
+					static_cast<WORD>(ServiceID),
+					Fields[6]);
+			}
 			return;
+		}
 
 		if (PullService(
 				&m_ReceiveClient,
@@ -1382,10 +1410,39 @@ private:
 		if (m_pEventHandler != nullptr)
 			m_pEventHandler->OnServiceMerged(NetworkID, TransportStreamID, ServiceID);
 
+		SetKnownETag(NetworkID, TransportStreamID, ServiceID, Response.ETag);
+
 		if (pETag != nullptr)
 			*pETag = Response.ETag;
 
 		return true;
+	}
+
+	/** サービスの内容を最後に照合したときのサーバの ETag を記録する */
+	void SetKnownETag(WORD NetworkID, WORD TransportStreamID, WORD ServiceID, const String &ETag)
+	{
+		if (ETag.empty())
+			return;
+
+		std::lock_guard<std::mutex> Lock(m_ETagLock);
+		m_KnownETags[MakeServiceKey(NetworkID, TransportStreamID, ServiceID)] = ETag;
+	}
+
+	bool IsKnownETag(WORD NetworkID, WORD TransportStreamID, WORD ServiceID, const String &ETag) const
+	{
+		if (ETag.empty())
+			return false;
+
+		std::lock_guard<std::mutex> Lock(m_ETagLock);
+		const auto itr = m_KnownETags.find(MakeServiceKey(NetworkID, TransportStreamID, ServiceID));
+		return (itr != m_KnownETags.end()) && (itr->second == ETag);
+	}
+
+	static unsigned long long MakeServiceKey(WORD NetworkID, WORD TransportStreamID, WORD ServiceID)
+	{
+		return (static_cast<unsigned long long>(NetworkID) << 32)
+			| (static_cast<unsigned long long>(TransportStreamID) << 16)
+			| ServiceID;
 	}
 
 	/** ローカルのサービスのバージョン(UpdatedTime の最大値)と番組数を求める
@@ -1520,6 +1577,8 @@ private:
 	std::atomic<unsigned long long> m_SendCompleteSerial{0};
 	std::atomic<bool> m_ResyncRequested{false};
 	std::atomic<bool> m_InitialPullStarted{false};
+	mutable std::mutex m_ETagLock;
+	std::map<unsigned long long, String> m_KnownETags;
 	bool m_fLogged = false;
 };
 
