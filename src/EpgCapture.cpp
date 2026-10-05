@@ -352,8 +352,9 @@ bool CEpgCaptureManager::ProcessCapture()
 		}
 	}
 
-	if (fComplete && fBasic && fNoBasic
-			&& m_AccumulateClock.GetSpan() < 60000)
+	// スケジュールを1つも受信していない場合は完了とは判定できない。
+	if (!fBasic || (fComplete && fNoBasic
+			&& m_AccumulateClock.GetSpan() < 60000))
 		fComplete = false;
 
 	if (fComplete) {

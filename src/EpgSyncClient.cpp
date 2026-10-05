@@ -702,6 +702,14 @@ public:
 
 		m_pEPGDatabase->AddEventListener(this);
 
+		// 再開時に前回の状態を持ち越さない
+		m_ResyncRequested.store(false, std::memory_order_relaxed);
+		m_InitialPullStarted.store(false, std::memory_order_relaxed);
+		{
+			std::lock_guard<std::mutex> Lock(m_ETagLock);
+			m_KnownETags.clear();
+		}
+
 		m_hSendThread = reinterpret_cast<HANDLE>(
 			::_beginthreadex(nullptr, 0, SendThread, this, 0, nullptr));
 		m_hReceiveThread = reinterpret_cast<HANDLE>(
@@ -818,8 +826,10 @@ private:
 			PushLogos();
 
 		// まずサーバの持ち物を取り込む
-		if (!IsStopped())
-			PullAll();
+		// これより前にイベントストリームが確立していれば、この一覧取得で切断中の更新も回収できる。
+		m_InitialPullStarted.store(true, std::memory_order_release);
+		if (!IsStopped() && !PullAll())
+			m_ResyncRequested.store(true, std::memory_order_release);
 
 		while (!IsStopped()) {
 			const HANDLE Handles[] = {m_hStopEvent, m_hSendEvent};
@@ -831,6 +841,11 @@ private:
 
 			const unsigned long long Target =
 				m_SendRequestSerial.load(std::memory_order_acquire);
+			if (m_ResyncRequested.exchange(false, std::memory_order_acq_rel)) {
+				// 通知が欠落した期間の内容は、時刻や番組数が同じでも取り直す。
+				if (!PullAll(true))
+					m_ResyncRequested.store(true, std::memory_order_release);
+			}
 			PushUpdatedServices();
 			m_SendCompleteSerial.store(Target, std::memory_order_release);
 			::SetEvent(m_hSendCompleteEvent);
@@ -988,13 +1003,18 @@ private:
 		return true;
 	}
 
-	/** サーバにあって自分に無い(または自分より新しい)サービスを取り込む */
-	void PullAll()
+	/** サーバにあって自分に無い(または自分より新しい)サービスを取り込む
+
+	一覧を取得できなかった場合だけ false を返す。
+	個々のサービスの失敗で全体をやり直すと、取り込めないサービスが 1 つあるだけで
+	全サービスの取得を延々と繰り返すことになるため、個別の失敗は次の通知に任せる。
+	*/
+	bool PullAll(bool Force = false)
 	{
 		std::vector<RemoteService> RemoteList;
 
 		if (!FetchServiceList(&m_SendClient, &RemoteList))
-			return;
+			return false;
 
 		int Merged = 0;
 
@@ -1002,10 +1022,19 @@ private:
 			if (IsStopped())
 				break;
 
-			if (!ShouldPull(
+			if (Force) {
+				// 前回照合したときから内容が変わっていなければ取り直さない
+				if (IsKnownETag(
+						Remote.NetworkID, Remote.TransportStreamID, Remote.ServiceID, Remote.ETag))
+					continue;
+			} else if (!ShouldPull(
 					Remote.NetworkID, Remote.TransportStreamID, Remote.ServiceID,
-					Remote.Version, Remote.EventCount))
+					Remote.Version, Remote.EventCount)) {
+				// 取り込む必要が無いと判断した内容として覚えておく
+				SetKnownETag(
+					Remote.NetworkID, Remote.TransportStreamID, Remote.ServiceID, Remote.ETag);
 				continue;
+			}
 
 			if (PullService(
 					&m_SendClient,
@@ -1016,6 +1045,8 @@ private:
 		GetAppClass().AddLog(
 			TEXT("EPG 共有サーバから {} / {} サービスを取り込みました。"),
 			Merged, RemoteList.size());
+
+		return true;
 	}
 
 	/** 自分が受信して更新されたサービスをサーバへ送る */
@@ -1052,13 +1083,20 @@ private:
 			// 既存の CEpgDataStore::Save() が UpdateCount を見て
 			// LoadMerged() してから書くのと同じ考え方。
 			String ETag;
+			bool fNotFound = false;
 			if (!PullService(
 					&m_SendClient,
-					Service.NetworkID, Service.TransportStreamID, Service.ServiceID, &ETag))
-				ETag.clear();
-
-			const unsigned long long PushedVersion =
-				GetLocalVersion(Service.NetworkID, Service.TransportStreamID, Service.ServiceID);
+					Service.NetworkID, Service.TransportStreamID, Service.ServiceID,
+					&ETag, &fNotFound)) {
+				if (!fNotFound) {
+					LogOnce(TEXT("EPG 共有サーバの既存データを取得できないため、送信を見送ります。"));
+					return;
+				}
+			} else if (ETag.empty()) {
+				// 既存データの競合検出ができない応答では書き戻さない。
+				LogOnce(TEXT("EPG 共有サーバが ETag を返さないため、送信を見送ります。"));
+				return;
+			}
 
 			LibISDB::MemoryStream Stream;
 
@@ -1074,6 +1112,10 @@ private:
 				String MatchHeader;
 				StringFormat(&MatchHeader, TEXT("If-Match: {}\r\n"), ETag);
 				Headers += MatchHeader;
+			} else {
+				// サーバに無いものとして新規作成する。
+				// 他の機が先に作成していた場合は 412 が返るので、取り直してやり直す。
+				Headers += TEXT("If-None-Match: *\r\n");
 			}
 
 			CHttpClient::Response Response;
@@ -1097,13 +1139,27 @@ private:
 				return;
 			}
 
-			// 送信中に新たな受信があった場合は更新済みのままにしておく
-			const unsigned long long CurrentVersion =
-				GetLocalVersion(Service.NetworkID, Service.TransportStreamID, Service.ServiceID);
+			// 200 ならサーバの内容は送信したものと同じになっている
+			if (Response.StatusCode == 200) {
+				SetKnownETag(
+					Service.NetworkID, Service.TransportStreamID, Service.ServiceID,
+					Response.ETag);
+			}
 
-			if (CurrentVersion == PushedVersion) {
-				m_pEPGDatabase->ResetServiceUpdated(
-					Service.NetworkID, Service.TransportStreamID, Service.ServiceID);
+			// TOT の時刻は更新ごとに変わるとは限らないので、送信した内容と比較する。
+			// 比較からフラグ解除までを同じロック内で行い、新しい受信を消さない。
+			{
+				LibISDB::BlockLock Lock(m_pEPGDatabase->GetLock());
+				LibISDB::MemoryStream CurrentStream;
+				if (LibISDB::EPGDataSerializer::SerializeService(
+						*m_pEPGDatabase,
+						Service.NetworkID, Service.TransportStreamID, Service.ServiceID,
+						CurrentStream)
+						&& CurrentStream.GetDataSize() == Stream.GetDataSize()
+						&& std::memcmp(CurrentStream.GetData(), Stream.GetData(), Stream.GetDataSize()) == 0) {
+					m_pEPGDatabase->ResetServiceUpdated(
+						Service.NetworkID, Service.TransportStreamID, Service.ServiceID);
+				}
 			}
 
 			m_fLogged = false;
@@ -1122,6 +1178,13 @@ private:
 
 		while (!IsStopped()) {
 			if (m_ReceiveClient.BeginStream(TEXT("/api/events?format=text"), m_CommonHeaders)) {
+				// ストリーム確立後に一覧を取得し、切断中の更新を回収する。
+				// HTTP 送信クライアントは送信スレッドだけで使用する。
+				// 起動時の一覧取得がまだなら、そちらで回収されるので要求しない。
+				if (m_InitialPullStarted.load(std::memory_order_acquire)) {
+					m_ResyncRequested.store(true, std::memory_order_release);
+					RequestSend();
+				}
 				Interval = RECONNECT_INTERVAL_MIN;
 				ReadEventStream();
 				m_ReceiveClient.EndStream();
@@ -1207,8 +1270,16 @@ private:
 				static_cast<WORD>(NetworkID),
 				static_cast<WORD>(TransportStreamID),
 				static_cast<WORD>(ServiceID),
-				Version, static_cast<unsigned int>(EventCount)))
+				Version, static_cast<unsigned int>(EventCount))) {
+			if ((Fields.size() >= 7) && (Fields[6] != TEXT("-"))) {
+				SetKnownETag(
+					static_cast<WORD>(NetworkID),
+					static_cast<WORD>(TransportStreamID),
+					static_cast<WORD>(ServiceID),
+					Fields[6]);
+			}
 			return;
+		}
 
 		if (PullService(
 				&m_ReceiveClient,
@@ -1296,8 +1367,14 @@ private:
 
 	bool PullService(
 		CHttpClient *pClient,
-		WORD NetworkID, WORD TransportStreamID, WORD ServiceID, String *pETag = nullptr)
+		WORD NetworkID, WORD TransportStreamID, WORD ServiceID,
+		String *pETag = nullptr, bool *pNotFound = nullptr)
 	{
+		if (pETag != nullptr)
+			pETag->clear();
+		if (pNotFound != nullptr)
+			*pNotFound = false;
+
 		CHttpClient::Response Response;
 
 		if (!pClient->Request(
@@ -1305,11 +1382,11 @@ private:
 				m_CommonHeaders, nullptr, 0, &Response))
 			return false;
 
-		if (Response.StatusCode != 200)
+		if (Response.StatusCode != 200) {
+			if (pNotFound != nullptr)
+				*pNotFound = Response.StatusCode == 404;
 			return false;
-
-		if (pETag != nullptr)
-			*pETag = Response.ETag;
+		}
 
 		LibISDB::MemoryStream Stream;
 
@@ -1337,7 +1414,39 @@ private:
 		if (m_pEventHandler != nullptr)
 			m_pEventHandler->OnServiceMerged(NetworkID, TransportStreamID, ServiceID);
 
+		SetKnownETag(NetworkID, TransportStreamID, ServiceID, Response.ETag);
+
+		if (pETag != nullptr)
+			*pETag = Response.ETag;
+
 		return true;
+	}
+
+	/** サービスの内容を最後に照合したときのサーバの ETag を記録する */
+	void SetKnownETag(WORD NetworkID, WORD TransportStreamID, WORD ServiceID, const String &ETag)
+	{
+		if (ETag.empty())
+			return;
+
+		std::lock_guard<std::mutex> Lock(m_ETagLock);
+		m_KnownETags[MakeServiceKey(NetworkID, TransportStreamID, ServiceID)] = ETag;
+	}
+
+	bool IsKnownETag(WORD NetworkID, WORD TransportStreamID, WORD ServiceID, const String &ETag) const
+	{
+		if (ETag.empty())
+			return false;
+
+		std::lock_guard<std::mutex> Lock(m_ETagLock);
+		const auto itr = m_KnownETags.find(MakeServiceKey(NetworkID, TransportStreamID, ServiceID));
+		return (itr != m_KnownETags.end()) && (itr->second == ETag);
+	}
+
+	static unsigned long long MakeServiceKey(WORD NetworkID, WORD TransportStreamID, WORD ServiceID)
+	{
+		return (static_cast<unsigned long long>(NetworkID) << 32)
+			| (static_cast<unsigned long long>(TransportStreamID) << 16)
+			| ServiceID;
 	}
 
 	/** ローカルのサービスのバージョン(UpdatedTime の最大値)と番組数を求める
@@ -1366,15 +1475,6 @@ private:
 			*pVersion = Version;
 		if (pEventCount != nullptr)
 			*pEventCount = EventCount;
-	}
-
-	unsigned long long GetLocalVersion(WORD NetworkID, WORD TransportStreamID, WORD ServiceID) const
-	{
-		unsigned long long Version = 0;
-
-		GetLocalState(NetworkID, TransportStreamID, ServiceID, &Version, nullptr);
-
-		return Version;
 	}
 
 	/** サーバ側の情報を取り込むべきか
@@ -1479,6 +1579,10 @@ private:
 	HANDLE m_hSendCompleteEvent = nullptr;
 	std::atomic<unsigned long long> m_SendRequestSerial{0};
 	std::atomic<unsigned long long> m_SendCompleteSerial{0};
+	std::atomic<bool> m_ResyncRequested{false};
+	std::atomic<bool> m_InitialPullStarted{false};
+	mutable std::mutex m_ETagLock;
+	std::map<unsigned long long, String> m_KnownETags;
 	bool m_fLogged = false;
 };
 
