@@ -1052,10 +1052,20 @@ private:
 			// 既存の CEpgDataStore::Save() が UpdateCount を見て
 			// LoadMerged() してから書くのと同じ考え方。
 			String ETag;
+			bool fNotFound = false;
 			if (!PullService(
 					&m_SendClient,
-					Service.NetworkID, Service.TransportStreamID, Service.ServiceID, &ETag))
-				ETag.clear();
+					Service.NetworkID, Service.TransportStreamID, Service.ServiceID,
+					&ETag, &fNotFound)) {
+				if (!fNotFound) {
+					LogOnce(TEXT("EPG 共有サーバの既存データを取得できないため、送信を見送ります。"));
+					return;
+				}
+			} else if (ETag.empty()) {
+				// 既存データの競合検出ができない応答では書き戻さない。
+				LogOnce(TEXT("EPG 共有サーバが ETag を返さないため、送信を見送ります。"));
+				return;
+			}
 
 			const unsigned long long PushedVersion =
 				GetLocalVersion(Service.NetworkID, Service.TransportStreamID, Service.ServiceID);
@@ -1296,8 +1306,14 @@ private:
 
 	bool PullService(
 		CHttpClient *pClient,
-		WORD NetworkID, WORD TransportStreamID, WORD ServiceID, String *pETag = nullptr)
+		WORD NetworkID, WORD TransportStreamID, WORD ServiceID,
+		String *pETag = nullptr, bool *pNotFound = nullptr)
 	{
+		if (pETag != nullptr)
+			pETag->clear();
+		if (pNotFound != nullptr)
+			*pNotFound = false;
+
 		CHttpClient::Response Response;
 
 		if (!pClient->Request(
@@ -1305,11 +1321,11 @@ private:
 				m_CommonHeaders, nullptr, 0, &Response))
 			return false;
 
-		if (Response.StatusCode != 200)
+		if (Response.StatusCode != 200) {
+			if (pNotFound != nullptr)
+				*pNotFound = Response.StatusCode == 404;
 			return false;
-
-		if (pETag != nullptr)
-			*pETag = Response.ETag;
+		}
 
 		LibISDB::MemoryStream Stream;
 
@@ -1336,6 +1352,9 @@ private:
 
 		if (m_pEventHandler != nullptr)
 			m_pEventHandler->OnServiceMerged(NetworkID, TransportStreamID, ServiceID);
+
+		if (pETag != nullptr)
+			*pETag = Response.ETag;
 
 		return true;
 	}
