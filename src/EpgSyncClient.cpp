@@ -702,6 +702,10 @@ public:
 
 		m_pEPGDatabase->AddEventListener(this);
 
+		// 再開時に前回の状態を持ち越さない
+		m_ResyncRequested.store(false, std::memory_order_relaxed);
+		m_InitialPullStarted.store(false, std::memory_order_relaxed);
+
 		m_hSendThread = reinterpret_cast<HANDLE>(
 			::_beginthreadex(nullptr, 0, SendThread, this, 0, nullptr));
 		m_hReceiveThread = reinterpret_cast<HANDLE>(
@@ -818,6 +822,8 @@ private:
 			PushLogos();
 
 		// まずサーバの持ち物を取り込む
+		// これより前にイベントストリームが確立していれば、この一覧取得で切断中の更新も回収できる。
+		m_InitialPullStarted.store(true, std::memory_order_release);
 		if (!IsStopped() && !PullAll())
 			m_ResyncRequested.store(true, std::memory_order_release);
 
@@ -1150,8 +1156,11 @@ private:
 			if (m_ReceiveClient.BeginStream(TEXT("/api/events?format=text"), m_CommonHeaders)) {
 				// ストリーム確立後に一覧を取得し、切断中の更新を回収する。
 				// HTTP 送信クライアントは送信スレッドだけで使用する。
-				m_ResyncRequested.store(true, std::memory_order_release);
-				RequestSend();
+				// 起動時の一覧取得がまだなら、そちらで回収されるので要求しない。
+				if (m_InitialPullStarted.load(std::memory_order_acquire)) {
+					m_ResyncRequested.store(true, std::memory_order_release);
+					RequestSend();
+				}
 				Interval = RECONNECT_INTERVAL_MIN;
 				ReadEventStream();
 				m_ReceiveClient.EndStream();
@@ -1510,6 +1519,7 @@ private:
 	std::atomic<unsigned long long> m_SendRequestSerial{0};
 	std::atomic<unsigned long long> m_SendCompleteSerial{0};
 	std::atomic<bool> m_ResyncRequested{false};
+	std::atomic<bool> m_InitialPullStarted{false};
 	bool m_fLogged = false;
 };
 
