@@ -993,7 +993,12 @@ private:
 		return true;
 	}
 
-	/** サーバにあって自分に無い(または自分より新しい)サービスを取り込む */
+	/** サーバにあって自分に無い(または自分より新しい)サービスを取り込む
+
+	一覧を取得できなかった場合だけ false を返す。
+	個々のサービスの失敗で全体をやり直すと、取り込めないサービスが 1 つあるだけで
+	全サービスの取得を延々と繰り返すことになるため、個別の失敗は次の通知に任せる。
+	*/
 	bool PullAll(bool Force = false)
 	{
 		std::vector<RemoteService> RemoteList;
@@ -1002,7 +1007,6 @@ private:
 			return false;
 
 		int Merged = 0;
-		bool fSucceeded = true;
 
 		for (const RemoteService &Remote : RemoteList) {
 			if (IsStopped())
@@ -1017,15 +1021,13 @@ private:
 					&m_SendClient,
 					Remote.NetworkID, Remote.TransportStreamID, Remote.ServiceID))
 				Merged++;
-			else
-				fSucceeded = false;
 		}
 
 		GetAppClass().AddLog(
 			TEXT("EPG 共有サーバから {} / {} サービスを取り込みました。"),
 			Merged, RemoteList.size());
 
-		return fSucceeded && !IsStopped();
+		return true;
 	}
 
 	/** 自分が受信して更新されたサービスをサーバへ送る */
