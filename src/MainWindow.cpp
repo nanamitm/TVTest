@@ -2457,17 +2457,31 @@ bool CMainWindow::HandleCommand(CCommandManager::InvokeParameters &Params)
 						LibISDB::ViewerFilter *pViewer = m_App.CoreEngine.GetFilter<LibISDB::ViewerFilter>();
 						bool fOK = false;
 
-						if (e.Filter == LibISDB::ViewerFilter::PropertyFilterType::VideoDecoder) {
-							LibISDB::COMPointer<IBaseFilter> Decoder(pViewer->GetVideoDecoderFilter());
-							if (Decoder) {
-								const HRESULT hr = ShowPropertyPageFrame(Decoder.Get(), hwndOwner, m_App.GetResourceInstance());
-								if (SUCCEEDED(hr)) {
+						// TVTest 側のフレームで表示する(ダークモード対応のため)
+						LibISDB::COMPointer<IBaseFilter> Filter(pViewer->GetPropertyFilter(e.Filter));
+						if (Filter) {
+							String Caption;
+							FILTER_INFO FilterInfo;
+							if (SUCCEEDED(Filter->QueryFilterInfo(&FilterInfo))) {
+								if (FilterInfo.achName[0] != L'\0') {
+									Caption = FilterInfo.achName;
+									Caption += TEXT(" のプロパティ");
+								}
+								if (FilterInfo.pGraph != nullptr)
+									FilterInfo.pGraph->Release();
+							}
+
+							const HRESULT hr = ShowPropertyPageFrame(
+								Filter.Get(), hwndOwner, m_App.GetResourceInstance(),
+								Caption.empty() ? nullptr : Caption.c_str());
+							if (SUCCEEDED(hr)) {
+								if (e.Filter == LibISDB::ViewerFilter::PropertyFilterType::VideoDecoder) {
 									pViewer->SaveVideoDecoderSettings();
 									CVideoDecoderOptions::VideoDecoderSettings Settings;
 									if (pViewer->GetVideoDecoderSettings(&Settings))
 										m_App.VideoDecoderOptions.SetVideoDecoderSettings(Settings);
-									fOK = true;
 								}
+								fOK = true;
 							}
 						}
 

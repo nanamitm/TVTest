@@ -32,6 +32,9 @@
     <Keyword>Win32Proj</Keyword>
     <ProjectName>TVTest</ProjectName>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <!-- vcpkg のユーザー全体統合が FFmpeg のインポートライブラリを自動リンクし、
+         LibISDB の静的 FFmpeg より優先されてしまうため無効にする -->
+    <VcpkgEnabled>false</VcpkgEnabled>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <Import Project="Common.props" />
