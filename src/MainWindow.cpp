@@ -2461,15 +2461,19 @@ bool CMainWindow::HandleCommand(CCommandManager::InvokeParameters &Params)
 						LibISDB::COMPointer<IBaseFilter> Filter(pViewer->GetPropertyFilter(e.Filter));
 						if (Filter) {
 							String Caption;
-							FILTER_INFO FilterInfo;
-							if (SUCCEEDED(Filter->QueryFilterInfo(&FilterInfo))) {
-								if (FilterInfo.achName[0] != L'\0') {
+							// 音声レンダラーはグラフ上では "Audio Renderer" という名前なので、
+							// 設定で選択されたデバイス名を使う
+							if (e.Filter != LibISDB::ViewerFilter::PropertyFilterType::AudioRenderer
+									|| !pViewer->GetAudioRendererName(&Caption)) {
+								FILTER_INFO FilterInfo;
+								if (SUCCEEDED(Filter->QueryFilterInfo(&FilterInfo))) {
 									Caption = FilterInfo.achName;
-									Caption += TEXT(" のプロパティ");
+									if (FilterInfo.pGraph != nullptr)
+										FilterInfo.pGraph->Release();
 								}
-								if (FilterInfo.pGraph != nullptr)
-									FilterInfo.pGraph->Release();
 							}
+							if (!Caption.empty())
+								Caption += TEXT(" のプロパティ");
 
 							const HRESULT hr = ShowPropertyPageFrame(
 								Filter.Get(), hwndOwner, m_App.GetResourceInstance(),
