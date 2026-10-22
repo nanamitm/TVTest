@@ -233,12 +233,17 @@ public:
 	STDMETHODIMP_(ULONG) Release() override { return ReleaseImpl(); }
 
 // IPropertyPageSite
-	STDMETHODIMP OnStatusChange(DWORD dwFlags) override { return S_OK; }
+	STDMETHODIMP OnStatusChange(DWORD dwFlags) override;
 	STDMETHODIMP GetLocaleID(LCID *pLocaleID) override;
 	STDMETHODIMP GetPageContainer(IUnknown **ppUnk) override { return E_NOTIMPL; }
 	STDMETHODIMP TranslateAccelerator(MSG *pMsg) override { return E_NOTIMPL; }
 
+// CPropertyPageSite
+	void SetFrameWindow(HWND hwnd) { m_hwndFrame = hwnd; }
+
 private:
+	HWND m_hwndFrame = nullptr;
+
 	~CPropertyPageSite() = default;
 };
 
@@ -256,6 +261,16 @@ STDMETHODIMP CPropertyPageSite::QueryInterface(REFIID riid, void **ppvObject)
 	}
 
 	AddRef();
+
+	return S_OK;
+}
+
+
+STDMETHODIMP CPropertyPageSite::OnStatusChange(DWORD dwFlags)
+{
+	// ページの内容が変更されたら「適用」ボタンを有効にする
+	if ((dwFlags & PROPPAGESTATUS_DIRTY) != 0 && m_hwndFrame != nullptr)
+		EnableDlgItem(m_hwndFrame, IDC_PROPERTYPAGEFRAME_APPLY, true);
 
 	return S_OK;
 }
@@ -422,11 +437,18 @@ INT_PTR CPropertyPageFrame::DlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
 				::GetDlgItem(hDlg, IDCANCEL),
 				rc.left + XOffset, rc.top + YOffset,
 				rc.right - rc.left, rc.bottom - rc.top, FALSE);
+			GetDlgItemRect(hDlg, IDC_PROPERTYPAGEFRAME_APPLY, &rc);
+			::MoveWindow(
+				::GetDlgItem(hDlg, IDC_PROPERTYPAGEFRAME_APPLY),
+				rc.left + XOffset, rc.top + YOffset,
+				rc.right - rc.left, rc.bottom - rc.top, FALSE);
 
 			m_PageRect = rcTab;
 			TabCtrl_AdjustRect(hwndTab, FALSE, &m_PageRect);
 
 			m_fTabInitialized = true;
+
+			m_pPageSite->SetFrameWindow(hDlg);
 
 			SetCurTab(0);
 
@@ -445,6 +467,17 @@ INT_PTR CPropertyPageFrame::DlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
 		case IDCANCEL:
 			::EndDialog(hDlg, LOWORD(wParam));
 			return TRUE;
+
+		case IDC_PROPERTYPAGEFRAME_APPLY:
+			for (auto &e : m_PageList) {
+				if (e.fActivated)
+					e.pPropPage->Apply();
+			}
+			// 無効にする前にフォーカスを移しておく
+			if (::GetFocus() == ::GetDlgItem(hDlg, IDC_PROPERTYPAGEFRAME_APPLY))
+				::SendMessage(hDlg, WM_NEXTDLGCTL, reinterpret_cast<WPARAM>(::GetDlgItem(hDlg, IDOK)), TRUE);
+			EnableDlgItem(hDlg, IDC_PROPERTYPAGEFRAME_APPLY, false);
+			return TRUE;
 		}
 		return TRUE;
 
@@ -462,6 +495,7 @@ INT_PTR CPropertyPageFrame::DlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
 		break;
 
 	case WM_DESTROY:
+		m_pPageSite->SetFrameWindow(nullptr);
 		for (auto &e : m_PageList) {
 			if (e.fActivated) {
 				e.pPropPage->Deactivate();
