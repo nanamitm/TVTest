@@ -278,7 +278,7 @@ class CPropertyPageFrame
 	: public CBasicDialog
 {
 public:
-	CPropertyPageFrame(IPropertyPage **ppPropPages, int NumPages, CPropertyPageSite *pPageSite);
+	CPropertyPageFrame(IPropertyPage **ppPropPages, int NumPages, CPropertyPageSite *pPageSite, LPCTSTR pszCaption);
 	~CPropertyPageFrame();
 	bool Show(HWND hwndOwner, HINSTANCE hinst);
 
@@ -293,6 +293,7 @@ private:
 
 	CPropertyPageSite *m_pPageSite;
 	std::vector<PageInfo> m_PageList;
+	String m_Caption;
 	bool m_fTabInitialized = false;
 	int m_CurTab = -1;
 	RECT m_PageRect;
@@ -302,9 +303,12 @@ private:
 };
 
 
-CPropertyPageFrame::CPropertyPageFrame(IPropertyPage **ppPropPages, int NumPages, CPropertyPageSite *pPageSite)
+CPropertyPageFrame::CPropertyPageFrame(IPropertyPage **ppPropPages, int NumPages, CPropertyPageSite *pPageSite, LPCTSTR pszCaption)
 	: m_pPageSite(pPageSite)
 {
+	if (!IsStringEmpty(pszCaption))
+		m_Caption = pszCaption;
+
 	// フレーム(ボタンやタブ部分)のみダークモードに対応させる。ページの
 	// 内容自体はフィルタ側の描画なので対象外。
 	m_fDisableDarkMode = !GetAppClass().GeneralOptions.GetPropertyPageDarkMode();
@@ -347,6 +351,9 @@ INT_PTR CPropertyPageFrame::DlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM 
 		{
 			m_fTabInitialized = false;
 			m_CurTab = -1;
+
+			if (!m_Caption.empty())
+				::SetWindowText(hDlg, m_Caption.c_str());
 
 			const HWND hwndTab = ::GetDlgItem(hDlg, IDC_PROPERTYPAGEFRAME_TAB);
 			SIZE MaxSize = {0, 0};
@@ -499,7 +506,7 @@ void CPropertyPageFrame::SetCurTab(int Tab)
 
 HRESULT ShowPropertyPageFrame(
 	IPropertyPage **ppPropPages, int NumPages,
-	IUnknown *pObject, HWND hwndOwner, HINSTANCE hinst)
+	IUnknown *pObject, HWND hwndOwner, HINSTANCE hinst, LPCTSTR pszCaption)
 {
 	if (ppPropPages == nullptr)
 		return E_POINTER;
@@ -525,7 +532,7 @@ HRESULT ShowPropertyPageFrame(
 	// TVTest DTV Video Decoder のダイアログが欠けるのでとりあえず System DPI とする
 	SystemDPIBlock SystemDPI;
 
-	CPropertyPageFrame Frame(ppPropPages, NumPages, pPageSite);
+	CPropertyPageFrame Frame(ppPropPages, NumPages, pPageSite, pszCaption);
 
 	Frame.Show(hwndOwner, hinst);
 
@@ -533,38 +540,60 @@ HRESULT ShowPropertyPageFrame(
 }
 
 
-HRESULT ShowPropertyPageFrame(IUnknown *pObject, HWND hwndOwner, HINSTANCE hinst)
+HRESULT ShowPropertyPageFrame(IUnknown *pObject, HWND hwndOwner, HINSTANCE hinst, LPCTSTR pszCaption)
 {
 	if (pObject == nullptr)
 		return E_POINTER;
 
 	HRESULT hr;
 	ISpecifyPropertyPages2 *pSpecifyPropPages2;
+	ISpecifyPropertyPages *pSpecifyPropPages = nullptr;
 
 	hr = pObject->QueryInterface(IID_PPV_ARGS(&pSpecifyPropPages2));
+	if (FAILED(hr)) {
+		// ISpecifyPropertyPages2 が無い場合はページを CLSID から作成する
+		pSpecifyPropPages2 = nullptr;
+		hr = pObject->QueryInterface(IID_PPV_ARGS(&pSpecifyPropPages));
+	}
 
 	if (SUCCEEDED(hr)) {
 		CAUUID Pages = {0, nullptr};
 
-		hr = pSpecifyPropPages2->GetPages(&Pages);
+		if (pSpecifyPropPages2 != nullptr)
+			hr = pSpecifyPropPages2->GetPages(&Pages);
+		else
+			hr = pSpecifyPropPages->GetPages(&Pages);
 		if (SUCCEEDED(hr) && Pages.pElems != nullptr) {
 			if (Pages.cElems > 0) {
 				std::vector<IPropertyPage*> PropPages(Pages.cElems);
 				ULONG j;
 
 				for (j = 0; j < Pages.cElems; j++) {
-					hr = pSpecifyPropPages2->CreatePage(Pages.pElems[j], &PropPages[j]);
+					if (pSpecifyPropPages2 != nullptr) {
+						hr = pSpecifyPropPages2->CreatePage(Pages.pElems[j], &PropPages[j]);
+					} else {
+						hr = ::CoCreateInstance(
+							Pages.pElems[j], nullptr, CLSCTX_INPROC_SERVER,
+							IID_PPV_ARGS(&PropPages[j]));
+					}
 					if (FAILED(hr))
 						break;
 				}
 				if (SUCCEEDED(hr))
-					hr = ShowPropertyPageFrame(PropPages.data(), Pages.cElems, pObject, hwndOwner, hinst);
+					hr = ShowPropertyPageFrame(PropPages.data(), Pages.cElems, pObject, hwndOwner, hinst, pszCaption);
 				while (j > 0)
 					PropPages[--j]->Release();
+			} else {
+				hr = E_FAIL;
 			}
 			::CoTaskMemFree(Pages.pElems);
+		} else if (SUCCEEDED(hr)) {
+			hr = E_FAIL;
 		}
-		pSpecifyPropPages2->Release();
+		if (pSpecifyPropPages2 != nullptr)
+			pSpecifyPropPages2->Release();
+		else
+			pSpecifyPropPages->Release();
 	}
 
 	return hr;

@@ -105,9 +105,9 @@ namespace TVTest
 
 	HRESULT ShowPropertyPageFrame(
 		IPropertyPage **pPropPages, int NumPages,
-		IUnknown *pObject, HWND hwndOwner, HINSTANCE hinst);
+		IUnknown *pObject, HWND hwndOwner, HINSTANCE hinst, LPCTSTR pszCaption = nullptr);
 	HRESULT ShowPropertyPageFrame(
-		IUnknown *pObject, HWND hwndOwner, HINSTANCE hinst);
+		IUnknown *pObject, HWND hwndOwner, HINSTANCE hinst, LPCTSTR pszCaption = nullptr);
 
 } // namespace TVTest
 
