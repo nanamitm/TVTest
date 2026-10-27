@@ -1198,7 +1198,14 @@ bool CInformationPanel::CAudioDeviceItem::Update()
 		GetAppClass().CoreEngine.GetFilter<LibISDB::ViewerFilter>();
 	LibISDB::String DeviceName;
 
-	if (pViewer != nullptr && pViewer->GetAudioRendererName(&DeviceName)) {
+	if (GetAppClass().CoreEngine.IsSpatialAudioActive()) {
+		// 空間オーディオへ出力している場合、レンダラ名は Null レンダラに
+		// なってしまうので、実際の出力先を表示する
+		DeviceName = CAudioOptions::SPATIAL_AUDIO_DEVICE_NAME;
+		if (m_AudioDeviceName == DeviceName)
+			return false;
+		m_AudioDeviceName = DeviceName;
+	} else if (pViewer != nullptr && pViewer->GetAudioRendererName(&DeviceName)) {
 		if (m_AudioDeviceName == DeviceName)
 			return false;
 		m_AudioDeviceName = DeviceName;
