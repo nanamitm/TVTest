@@ -619,6 +619,7 @@
     <ClCompile Include="Settings.cpp" />
     <ClCompile Include="SideBar.cpp" />
     <ClCompile Include="SideBarOptions.cpp" />
+    <ClCompile Include="SpatialAudioRenderer.cpp" />
     <ClCompile Include="StatusItems.cpp" />
     <ClCompile Include="StatusOptions.cpp" />
     <ClCompile Include="StatusView.cpp" />
@@ -770,6 +771,7 @@
     <ClInclude Include="Settings.h" />
     <ClInclude Include="SideBar.h" />
     <ClInclude Include="SideBarOptions.h" />
+    <ClInclude Include="SpatialAudioRenderer.h" />
     <ClInclude Include="StatusItems.h" />
     <ClInclude Include="StatusOptions.h" />
     <ClInclude Include="StatusView.h" />

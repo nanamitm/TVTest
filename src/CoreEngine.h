@@ -33,7 +33,9 @@
 #include "LibISDB/LibISDB/Filters/CaptionFilter.hpp"
 #include "LibISDB/LibISDB/Windows/Filters/BonDriverSourceFilter.hpp"
 #include "TSProcessor.h"
+#include "SpatialAudioRenderer.h"
 #include <atomic>
+#include <memory>
 
 
 namespace TVTest
@@ -105,6 +107,7 @@ namespace TVTest
 		void EnableTSProcessor(bool fEnable);
 		bool IsTSProcessorEnabled() const { return m_fEnableTSProcessor; }
 		bool BuildMediaViewer(const LibISDB::ViewerFilter::OpenSettings &Settings);
+		bool IsSpatialAudioActive() const { return static_cast<bool>(m_SpatialAudioRenderer); }
 		bool CloseMediaViewer();
 		bool EnableMediaViewer(bool fEnable);
 
@@ -258,6 +261,7 @@ namespace TVTest
 		int m_PacketBufferFillPercentage = 0;
 		UINT m_TimerResolution = 0;
 		bool m_fNoEpg = false;
+		std::unique_ptr<CSpatialAudioRenderer> m_SpatialAudioRenderer;
 
 		std::atomic<std::underlying_type_t<StatusFlag>> m_AsyncStatusUpdatedFlags{0};
 

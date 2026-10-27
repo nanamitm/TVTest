@@ -129,7 +129,11 @@ bool CMainDisplay::BuildViewer(BYTE VideoStreamType)
 	OpenSettings.pszVideoDecoder = pszVideoDecoder;
 	OpenSettings.AudioDevice.FriendlyName = m_App.AudioOptions.GetAudioDeviceName();
 	OpenSettings.AudioDevice.MonikerName = m_App.AudioOptions.GetAudioDeviceMoniker();
-	if (m_App.AudioOptions.GetAudioFilterName() != nullptr)
+	const bool SpatialAudio = m_App.AudioOptions.IsSpatialAudioSelected();
+	OpenSettings.UseNullAudioRenderer = SpatialAudio;
+	// 空間オーディオへは多チャンネルの PCM をそのまま渡すため、PCM を
+	// 前提にした音声フィルタは挟まない
+	if (!SpatialAudio && m_App.AudioOptions.GetAudioFilterName() != nullptr)
 		OpenSettings.AudioFilterList.emplace_back(m_App.AudioOptions.GetAudioFilterName());
 
 	pViewer->SetAACDecoderType(m_App.AudioOptions.GetAACDecoder());
@@ -139,6 +143,13 @@ bool CMainDisplay::BuildViewer(BYTE VideoStreamType)
 		return false;
 	}
 	m_App.AudioOptions.ApplyMediaViewerOptions();
+
+	if (SpatialAudio && !m_App.CoreEngine.IsSpatialAudioActive()) {
+		// Windows の設定で空間オーディオが有効になっていない場合など
+		m_App.AddLog(
+			CLogItem::LogType::Warning,
+			TEXT("空間オーディオを利用できないため、通常の音声デバイスで再生します。"));
+	}
 
 	m_App.AddLog(TEXT("DirectShowの初期化を行いました。"));
 

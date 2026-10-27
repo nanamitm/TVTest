@@ -58,6 +58,17 @@ namespace TVTest
 
 	// CAudioOptions
 		bool ApplyMediaViewerOptions();
+		/*
+			音声の出力先として、DirectShow の音声デバイスの代わりに Windows
+			空間オーディオを選べるようにしている。デバイス一覧に並べる擬似的な
+			項目で、このモニカ名が選ばれている場合は音声デコーダを Null
+			レンダラへ繋ぎ、CSpatialAudioRenderer が再生を受け持つ。
+		*/
+		static constexpr LPCTSTR SPATIAL_AUDIO_MONIKER_NAME = TEXT("@TVTest:WindowsSpatialAudio");
+		static constexpr LPCTSTR SPATIAL_AUDIO_DEVICE_NAME = TEXT("Windows 空間オーディオ");
+		bool IsSpatialAudioSelected() const {
+			return StringUtility::IsEqualNoCase(m_AudioDevice.MonikerName, SPATIAL_AUDIO_MONIKER_NAME);
+		}
 		const String & GetAudioDeviceName() const { return m_AudioDevice.FriendlyName; }
 		const String & GetAudioDeviceMoniker() const { return m_AudioDevice.MonikerName; }
 		LPCTSTR GetAudioFilterName() const { return StringUtility::GetCStrOrNull(m_AudioFilterName); }
