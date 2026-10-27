@@ -204,6 +204,9 @@
     <ClCompile Include="SideBarOptions.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="SpatialAudioRenderer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="StatusItems.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -639,6 +642,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="SideBarOptions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SpatialAudioRenderer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="StatusItems.h">

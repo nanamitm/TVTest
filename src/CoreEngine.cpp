@@ -21,11 +21,26 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "CoreEngine.h"
+#include <algorithm>
 #include "Common/DebugDef.h"
 
 
 namespace TVTest
 {
+
+
+namespace
+{
+
+// 音量レベル (0〜100) を線形のゲインへ変換する。
+// LevelToDeciBel() と同じ対応 (dB = 20*log10(Level/100)) だが、空間オーディオ
+// には掛け算する係数が必要なため、dB を経由せず線形で求める。
+float LevelToLinearGain(int Level)
+{
+	return std::clamp(static_cast<float>(Level) / 100.0f, 0.0f, 1.0f);
+}
+
+}	// namespace
 
 
 CCoreEngine::~CCoreEngine()
@@ -204,12 +219,33 @@ void CCoreEngine::EnableTSProcessor(bool fEnable)
 
 bool CCoreEngine::BuildMediaViewer(const LibISDB::ViewerFilter::OpenSettings &Settings)
 {
+	// 再構築する場合、古いコールバックを先に外しておく
+	if (m_pViewer != nullptr)
+		m_pViewer->SetAudioSampleCallback(nullptr);
+
+	LibISDB::ViewerFilter::OpenSettings ViewerSettings = Settings;
+
+	if (ViewerSettings.UseNullAudioRenderer) {
+		m_SpatialAudioRenderer = std::make_unique<CSpatialAudioRenderer>();
+		if (!m_SpatialAudioRenderer->Initialize()) {
+			// 空間オーディオが使えない環境では、通常の音声デバイスへ戻す
+			m_SpatialAudioRenderer.reset();
+			ViewerSettings.UseNullAudioRenderer = false;
+			ViewerSettings.AudioDevice.FriendlyName.clear();
+			ViewerSettings.AudioDevice.MonikerName.clear();
+		}
+	} else {
+		m_SpatialAudioRenderer.reset();
+	}
+
 	if (!IsViewerOpen()) {
-		if (!BuildViewer(Settings)) {
+		if (!BuildViewer(ViewerSettings)) {
+			m_SpatialAudioRenderer.reset();
 			return false;
 		}
 	} else {
-		if (!RebuildViewer(Settings)) {
+		if (!RebuildViewer(ViewerSettings)) {
+			m_SpatialAudioRenderer.reset();
 			return false;
 		}
 	}
@@ -219,7 +255,21 @@ bool CCoreEngine::BuildMediaViewer(const LibISDB::ViewerFilter::OpenSettings &Se
 		m_AudioGain != 100 || m_SurroundAudioGain != 100,
 		static_cast<float>(m_AudioGain) / 100.0f, static_cast<float>(m_SurroundAudioGain) / 100.0f);
 	m_pViewer->SetDualMonoMode(m_DualMonoMode);
-	m_pViewer->SetSPDIFOptions(m_SPDIFOptions);
+
+	if (m_SpatialAudioRenderer) {
+		// 空間オーディオへ出力する場合、音量はレンダラ側で掛ける。
+		// S/PDIF パススルーとサラウンドのダウンミックスは、デコーダから
+		// 多チャンネルのまま受け取るために無効にする。
+		m_SpatialAudioRenderer->SetVolume(m_fMute ? 0.0f : LevelToLinearGain(m_Volume));
+		m_pViewer->SetSPDIFOptions(
+			LibISDB::DirectShow::AudioDecoderFilter::SPDIFOptions(
+				LibISDB::DirectShow::AudioDecoderFilter::SPDIFMode::Disabled, 0));
+		m_pViewer->SetDownMixSurround(false);
+		m_pViewer->SetAudioGainControl(false);
+		m_pViewer->SetAudioSampleCallback(m_SpatialAudioRenderer.get());
+	} else {
+		m_pViewer->SetSPDIFOptions(m_SPDIFOptions);
+	}
 
 	return true;
 }
@@ -227,7 +277,15 @@ bool CCoreEngine::BuildMediaViewer(const LibISDB::ViewerFilter::OpenSettings &Se
 
 bool CCoreEngine::CloseMediaViewer()
 {
-	return CloseViewer();
+	// コールバックを外してから破棄する
+	if (m_pViewer != nullptr)
+		m_pViewer->SetAudioSampleCallback(nullptr);
+
+	const bool Result = CloseViewer();
+
+	m_SpatialAudioRenderer.reset();
+
+	return Result;
 }
 
 
@@ -485,6 +543,8 @@ bool CCoreEngine::SetVolume(int Volume)
 		return false;
 	if (m_pViewer != nullptr)
 		m_pViewer->SetVolume(LevelToDeciBel(Volume));
+	if (m_SpatialAudioRenderer)
+		m_SpatialAudioRenderer->SetVolume(LevelToLinearGain(Volume));
 	m_Volume = Volume;
 	m_fMute = false;
 	return true;
@@ -496,6 +556,8 @@ bool CCoreEngine::SetMute(bool fMute)
 	if (fMute != m_fMute) {
 		if (m_pViewer != nullptr)
 			m_pViewer->SetVolume(fMute ? -100.0f : LevelToDeciBel(m_Volume));
+		if (m_SpatialAudioRenderer)
+			m_SpatialAudioRenderer->SetVolume(fMute ? 0.0f : LevelToLinearGain(m_Volume));
 		m_fMute = fMute;
 	}
 	return true;
