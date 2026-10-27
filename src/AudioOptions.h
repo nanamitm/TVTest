@@ -69,6 +69,16 @@ namespace TVTest
 		bool IsSpatialAudioSelected() const {
 			return StringUtility::IsEqualNoCase(m_AudioDevice.MonikerName, SPATIAL_AUDIO_MONIKER_NAME);
 		}
+		/*
+			22.2ch 音声を通常の音声デバイスへ出す場合のダウンミックス先。
+			2 / 6 (5.1ch) / 8 (7.1ch) のいずれか。Windows 空間オーディオへ
+			出す場合はダウンミックスせず 24ch のまま再生するため使われない。
+		*/
+		int GetLatmDownmixChannels() const { return m_LatmDownmixChannels; }
+		/** 使用するダウンミックスのプリセット名。空ならチャンネル数から決まる既定名 */
+		const String & GetLatmDownmixPresetName() const { return m_LatmDownmixPresetName; }
+		/** ダウンミックスのプリセットを定義する ini ファイルの名前 */
+		static constexpr LPCTSTR LATM_DOWNMIX_PRESET_FILE_NAME = TEXT("LatmDownmixPresets.ini");
 		const String & GetAudioDeviceName() const { return m_AudioDevice.FriendlyName; }
 		const String & GetAudioDeviceMoniker() const { return m_AudioDevice.MonikerName; }
 		LPCTSTR GetAudioFilterName() const { return StringUtility::GetCStrOrNull(m_AudioFilterName); }
@@ -110,6 +120,8 @@ namespace TVTest
 			LibISDB::DirectShow::AudioDecoderFilter::SPDIFMode::Disabled,
 			LibISDB::DirectShow::AudioDecoderFilter::SPDIFOptions::Channel_Surround};
 		bool m_fDownMixSurround = true;
+		int m_LatmDownmixChannels = 2;
+		String m_LatmDownmixPresetName;
 		bool m_fUseCustomSurroundMixingMatrix = false;
 		LibISDB::DirectShow::AudioDecoderFilter::SurroundMixingMatrix m_SurroundMixingMatrix{m_DefaultSurroundMixingMatrix};
 		bool m_fUseCustomDownMixMatrix = false;

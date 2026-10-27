@@ -131,6 +131,17 @@ bool CMainDisplay::BuildViewer(BYTE VideoStreamType)
 	OpenSettings.AudioDevice.MonikerName = m_App.AudioOptions.GetAudioDeviceMoniker();
 	const bool SpatialAudio = m_App.AudioOptions.IsSpatialAudioSelected();
 	OpenSettings.UseNullAudioRenderer = SpatialAudio;
+	OpenSettings.LatmDownmixChannels = m_App.AudioOptions.GetLatmDownmixChannels();
+	OpenSettings.LatmDownmixPresetName = m_App.AudioOptions.GetLatmDownmixPresetName();
+	// プリセットを定義する ini は TVTest.exe と同じフォルダに置く
+	{
+		String PresetFileName;
+		if (m_App.GetAppDirectory(&PresetFileName)) {
+			PresetFileName += TEXT('\\');
+			PresetFileName += CAudioOptions::LATM_DOWNMIX_PRESET_FILE_NAME;
+			OpenSettings.LatmDownmixPresetFileName = std::move(PresetFileName);
+		}
+	}
 	// 空間オーディオへは多チャンネルの PCM をそのまま渡すため、PCM を
 	// 前提にした音声フィルタは挟まない
 	if (!SpatialAudio && m_App.AudioOptions.GetAudioFilterName() != nullptr)
