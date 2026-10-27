@@ -437,6 +437,8 @@ bool CSpatialAudioRenderer::ResetStream()
 	if (!m_Stream)
 		return false;
 
+	TRACE(TEXT("CSpatialAudioRenderer::ResetStream()\n"));
+
 	const HRESULT hr = m_Stream->Reset();
 
 	for (auto &Object : m_StaticObjects)
@@ -666,16 +668,15 @@ void CSpatialAudioRenderer::RenderThreadProc()
 			continue;
 		}
 
-		if (AvailableObjects < DYNAMIC_OBJECT_COUNT) {
-			m_Stream->EndUpdatingAudioObjects();
-			ResetStream();
-			continue;
-		}
-
-		if (!m_ObjectsActivated && !ActivateObjects()) {
-			m_Stream->EndUpdatingAudioObjects();
-			ResetStream();
-			continue;
+		// AvailableObjects は「これから新たに作れる動的オブジェクトの数」
+		// なので、必要な数を確保した後は 0 になる。オブジェクトを作る前の
+		// 段階でのみ数を確認する。
+		if (!m_ObjectsActivated) {
+			if ((AvailableObjects < DYNAMIC_OBJECT_COUNT) || !ActivateObjects()) {
+				m_Stream->EndUpdatingAudioObjects();
+				ResetStream();
+				continue;
+			}
 		}
 
 		// 取り出せなかった分は無音にする
