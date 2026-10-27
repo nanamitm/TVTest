@@ -108,6 +108,11 @@ bool CAudioOptions::ReadSettings(CSettings &Settings)
 		m_SPDIFOptions.Mode = static_cast<LibISDB::DirectShow::AudioDecoderFilter::SPDIFMode>(SpdifMode);
 	Settings.Read(TEXT("SpdifChannels"), &m_SPDIFOptions.PassthroughChannels);
 	Settings.Read(TEXT("DownMixSurround"), &m_fDownMixSurround);
+	if (Settings.Read(TEXT("LatmDownmixChannels"), &m_LatmDownmixChannels)
+			&& (m_LatmDownmixChannels != 2) && (m_LatmDownmixChannels != 6)
+			&& (m_LatmDownmixChannels != 8))
+		m_LatmDownmixChannels = 2;
+	Settings.Read(TEXT("LatmDownmixPreset"), &m_LatmDownmixPresetName);
 
 	Settings.Read(TEXT("UseCustomSurroundMixingMatrix"), &m_fUseCustomSurroundMixingMatrix);
 	String Buffer;
@@ -170,6 +175,8 @@ bool CAudioOptions::WriteSettings(CSettings &Settings)
 	Settings.Write(TEXT("SpdifMode"), static_cast<int>(m_SPDIFOptions.Mode));
 	Settings.Write(TEXT("SpdifChannels"), m_SPDIFOptions.PassthroughChannels);
 	Settings.Write(TEXT("DownMixSurround"), m_fDownMixSurround);
+	Settings.Write(TEXT("LatmDownmixChannels"), m_LatmDownmixChannels);
+	Settings.Write(TEXT("LatmDownmixPreset"), m_LatmDownmixPresetName);
 
 	Settings.Write(TEXT("UseCustomSurroundMixingMatrix"), m_fUseCustomSurroundMixingMatrix);
 	String Buffer;
