@@ -444,6 +444,15 @@ INT_PTR CAudioOptions::DlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			}
 			return TRUE;
 
+		case IDC_OPTIONS_LATMDOWNMIXOPTIONS:
+			{
+				CLatmDownmixOptionsDialog Dlg(this);
+
+				if (Dlg.Show(hDlg))
+					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
+			}
+			return TRUE;
+
 		case IDC_OPTIONS_ENABLEAUDIOLANGUAGEPRIORITY:
 			UpdateLanguagePriorityControls();
 			return TRUE;
@@ -619,6 +628,120 @@ void CAudioOptions::UpdateLanguagePriorityControls()
 }
 
 
+
+
+CAudioOptions::CLatmDownmixOptionsDialog::CLatmDownmixOptionsDialog(CAudioOptions *pOptions)
+	: m_pOptions(pOptions)
+{
+}
+
+
+bool CAudioOptions::CLatmDownmixOptionsDialog::Show(HWND hwndOwner)
+{
+	return ShowDialog(
+		hwndOwner,
+		GetAppClass().GetResourceInstance(),
+		MAKEINTRESOURCE(IDD_LATMDOWNMIXOPTIONS)) == IDOK;
+}
+
+
+INT_PTR CAudioOptions::CLatmDownmixOptionsDialog::DlgProc(
+	HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+	// コンボボックスの並びと設定値の対応
+	static const int ChannelsList[] = {8, 6, 2};
+
+	switch (uMsg) {
+	case WM_INITDIALOG:
+		{
+			static const LPCTSTR ChannelsTextList[] = {
+				TEXT("7.1ch"), TEXT("5.1ch"), TEXT("2ch (ステレオ)")
+			};
+			int Sel = static_cast<int>(lengthof(ChannelsList)) - 1;
+			for (size_t i = 0; i < lengthof(ChannelsTextList); i++) {
+				DlgComboBox_AddString(hDlg, IDC_LATMDOWNMIX_CHANNELS, ChannelsTextList[i]);
+				if (ChannelsList[i] == m_pOptions->m_LatmDownmixChannels)
+					Sel = static_cast<int>(i);
+			}
+			DlgComboBox_SetCurSel(hDlg, IDC_LATMDOWNMIX_CHANNELS, Sel);
+
+			// ini に定義されたプリセットを一覧に出す。先頭の「(自動)」は
+			// ダウンミックス先のチャンネル数から決まる既定の定義を使う
+			DlgComboBox_AddString(hDlg, IDC_LATMDOWNMIX_PRESET, TEXT("(自動)"));
+			Sel = 0;
+			{
+				std::vector<String> PresetNames;
+				String FileName;
+				if (GetAppClass().GetAppDirectory(&FileName)) {
+					FileName += TEXT('\\');
+					FileName += LATM_DOWNMIX_PRESET_FILE_NAME;
+					LibISDB::DirectShow::AudioDecoderFilter::EnumerateLatmDownmixPresets(
+						FileName.c_str(), &PresetNames);
+				}
+				// iniから消えた名前でも、設定が失われないよう一覧に残す
+				if (!m_pOptions->m_LatmDownmixPresetName.empty()
+						&& std::ranges::find_if(
+								PresetNames,
+								[&](const String &Name) {
+									return StringUtility::IsEqualNoCase(
+										Name, m_pOptions->m_LatmDownmixPresetName);
+								}) == PresetNames.end())
+					PresetNames.push_back(m_pOptions->m_LatmDownmixPresetName);
+
+				for (size_t i = 0; i < PresetNames.size(); i++) {
+					DlgComboBox_AddString(hDlg, IDC_LATMDOWNMIX_PRESET, PresetNames[i].c_str());
+					if (StringUtility::IsEqualNoCase(
+							PresetNames[i], m_pOptions->m_LatmDownmixPresetName))
+						Sel = static_cast<int>(i) + 1;
+				}
+			}
+			DlgComboBox_SetCurSel(hDlg, IDC_LATMDOWNMIX_PRESET, Sel);
+
+			::SetDlgItemText(
+				hDlg, IDC_LATMDOWNMIX_NOTE,
+				TEXT("22.2ch音声を通常の音声デバイスで再生する際の設定です。")
+				TEXT("音声デバイスに「Windows 空間オーディオ」を選んでいる場合は")
+				TEXT("ダウンミックスを行わないため、この設定は使われません。"));
+		}
+		return TRUE;
+
+	case WM_COMMAND:
+		switch (LOWORD(wParam)) {
+		case IDOK:
+			{
+				bool Changed = false;
+
+				const int Sel = static_cast<int>(
+					DlgComboBox_GetCurSel(hDlg, IDC_LATMDOWNMIX_CHANNELS));
+				if ((Sel >= 0) && (Sel < static_cast<int>(lengthof(ChannelsList)))
+						&& (m_pOptions->m_LatmDownmixChannels != ChannelsList[Sel])) {
+					m_pOptions->m_LatmDownmixChannels = ChannelsList[Sel];
+					Changed = true;
+				}
+
+				String PresetName;
+				const int PresetSel = static_cast<int>(
+					DlgComboBox_GetCurSel(hDlg, IDC_LATMDOWNMIX_PRESET));
+				if (PresetSel > 0)
+					GetDlgComboBoxItemString(hDlg, IDC_LATMDOWNMIX_PRESET, PresetSel, &PresetName);
+				if (!StringUtility::IsEqualNoCase(m_pOptions->m_LatmDownmixPresetName, PresetName)) {
+					m_pOptions->m_LatmDownmixPresetName = std::move(PresetName);
+					Changed = true;
+				}
+
+				::EndDialog(hDlg, Changed ? IDOK : IDCANCEL);
+			}
+			return TRUE;
+
+		case IDCANCEL:
+			::EndDialog(hDlg, IDCANCEL);
+			return TRUE;
+		}
+		return TRUE;
+	}
+
+	return FALSE;
+}
 
 
 CAudioOptions::CSurroundOptionsDialog::CSurroundOptionsDialog(CAudioOptions *pOptions)

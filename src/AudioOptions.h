@@ -91,6 +91,19 @@ namespace TVTest
 		bool GetResetAudioDelayOnChannelChange() const { return m_fResetAudioDelayOnChannelChange; }
 
 	private:
+		class CLatmDownmixOptionsDialog
+			: public CBasicDialog
+		{
+		public:
+			CLatmDownmixOptionsDialog(CAudioOptions *pOptions);
+			bool Show(HWND hwndOwner) override;
+
+		private:
+			CAudioOptions *m_pOptions;
+
+			INT_PTR DlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) override;
+		};
+
 		class CSurroundOptionsDialog
 			: public CBasicDialog
 		{
