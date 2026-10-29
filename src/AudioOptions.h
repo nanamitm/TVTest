@@ -71,9 +71,12 @@ namespace TVTest
 		}
 		/*
 			22.2ch 音声を通常の音声デバイスへ出す場合のダウンミックス先。
-			2 / 6 (5.1ch) / 8 (7.1ch) のいずれか。Windows 空間オーディオへ
-			出す場合はダウンミックスせず 24ch のまま再生するため使われない。
+			2 / 6 (5.1ch) / 8 (7.1ch) / 0 (LATM_DOWNMIX_PASSTHROUGH) のいずれか。
+			0 はダウンミックスせず 22.2ch (24ch PCM) のまま音声フィルタ等へ渡す
+			(実験的)。Windows 空間オーディオへ出す場合は常に 24ch のまま再生する
+			ため使われない。
 		*/
+		static constexpr int LATM_DOWNMIX_PASSTHROUGH = 0;
 		int GetLatmDownmixChannels() const { return m_LatmDownmixChannels; }
 		/** 使用するダウンミックスのプリセット名。空ならチャンネル数から決まる既定名 */
 		const String & GetLatmDownmixPresetName() const { return m_LatmDownmixPresetName; }
@@ -102,6 +105,7 @@ namespace TVTest
 			CAudioOptions *m_pOptions;
 
 			INT_PTR DlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) override;
+			void UpdatePresetEnabled(HWND hDlg);
 		};
 
 		class CSurroundOptionsDialog
