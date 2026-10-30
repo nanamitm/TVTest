@@ -109,6 +109,7 @@ bool CAudioOptions::ReadSettings(CSettings &Settings)
 	Settings.Read(TEXT("SpdifChannels"), &m_SPDIFOptions.PassthroughChannels);
 	Settings.Read(TEXT("DownMixSurround"), &m_fDownMixSurround);
 	if (Settings.Read(TEXT("LatmDownmixChannels"), &m_LatmDownmixChannels)
+			&& (m_LatmDownmixChannels != LATM_DOWNMIX_PASSTHROUGH)
 			&& (m_LatmDownmixChannels != 2) && (m_LatmDownmixChannels != 6)
 			&& (m_LatmDownmixChannels != 8))
 		m_LatmDownmixChannels = 2;
@@ -645,17 +646,27 @@ bool CAudioOptions::CLatmDownmixOptionsDialog::Show(HWND hwndOwner)
 }
 
 
+void CAudioOptions::CLatmDownmixOptionsDialog::UpdatePresetEnabled(HWND hDlg)
+{
+	// パススルー (コンボボックスの先頭) ではダウンミックスを行わないので、
+	// プリセットの指定は無効にする
+	const bool fPassthrough = DlgComboBox_GetCurSel(hDlg, IDC_LATMDOWNMIX_CHANNELS) == 0;
+	EnableDlgItem(hDlg, IDC_LATMDOWNMIX_PRESET, !fPassthrough);
+	EnableDlgItem(hDlg, IDC_LATMDOWNMIX_PRESET_LABEL, !fPassthrough);
+}
+
+
 INT_PTR CAudioOptions::CLatmDownmixOptionsDialog::DlgProc(
 	HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	// コンボボックスの並びと設定値の対応
-	static const int ChannelsList[] = {8, 6, 2};
+	static const int ChannelsList[] = {LATM_DOWNMIX_PASSTHROUGH, 8, 6, 2};
 
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
 			static const LPCTSTR ChannelsTextList[] = {
-				TEXT("7.1ch"), TEXT("5.1ch"), TEXT("2ch (ステレオ)")
+				TEXT("22.2chパススルー (実験的)"), TEXT("7.1ch"), TEXT("5.1ch"), TEXT("2ch (ステレオ)")
 			};
 			int Sel = static_cast<int>(lengthof(ChannelsList)) - 1;
 			for (size_t i = 0; i < lengthof(ChannelsTextList); i++) {
@@ -664,6 +675,7 @@ INT_PTR CAudioOptions::CLatmDownmixOptionsDialog::DlgProc(
 					Sel = static_cast<int>(i);
 			}
 			DlgComboBox_SetCurSel(hDlg, IDC_LATMDOWNMIX_CHANNELS, Sel);
+			UpdatePresetEnabled(hDlg);
 
 			// ini に定義されたプリセットを一覧に出す。先頭の「(自動)」は
 			// ダウンミックス先のチャンネル数から決まる既定の定義を使う
@@ -699,14 +711,20 @@ INT_PTR CAudioOptions::CLatmDownmixOptionsDialog::DlgProc(
 
 			::SetDlgItemText(
 				hDlg, IDC_LATMDOWNMIX_NOTE,
-				TEXT("22.2ch音声を通常の音声デバイスで再生する際の設定です。")
-				TEXT("音声デバイスに「Windows 空間オーディオ」を選んでいる場合は")
-				TEXT("ダウンミックスを行わないため、この設定は使われません。"));
+				TEXT("22.2ch音声を通常の音声デバイスで再生する際の設定です。\r\n")
+				TEXT("音声デバイスに「Windows 空間オーディオ」を選んでいる場合はダウンミックスを行わないため、この設定は使われません。\r\n\r\n")
+				TEXT("「22.2chパススルー」はダウンミックスせず 24ch の PCM を音声フィルタへそのまま渡す実験的な設定です。24ch に対応した音声フィルタを指定していない場合は音が出ないことがあります。")
+				);
 		}
 		return TRUE;
 
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
+		case IDC_LATMDOWNMIX_CHANNELS:
+			if (HIWORD(wParam) == CBN_SELCHANGE)
+				UpdatePresetEnabled(hDlg);
+			return TRUE;
+
 		case IDOK:
 			{
 				bool Changed = false;
