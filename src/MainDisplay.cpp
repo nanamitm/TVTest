@@ -147,6 +147,16 @@ bool CMainDisplay::BuildViewer(BYTE VideoStreamType)
 	if (!SpatialAudio && m_App.AudioOptions.GetAudioFilterName() != nullptr)
 		OpenSettings.AudioFilterList.emplace_back(m_App.AudioOptions.GetAudioFilterName());
 
+	if (!SpatialAudio
+			&& (OpenSettings.LatmDownmixChannels == CAudioOptions::LATM_DOWNMIX_PASSTHROUGH)) {
+		// 24ch PCM を通常の音声デバイスへ直接出しても再生できない場合が多い
+		m_App.AddLog(
+			CLogItem::LogType::Warning,
+			m_App.AudioOptions.GetAudioFilterName() != nullptr ?
+				TEXT("22.2chパススルー (実験的) が有効です。24ch の PCM をダウンミックスせずに音声フィルタへ渡します。") :
+				TEXT("22.2chパススルー (実験的) が有効ですが、音声フィルタが指定されていません。音声が再生されない可能性があります。"));
+	}
+
 	pViewer->SetAACDecoderType(m_App.AudioOptions.GetAACDecoder());
 
 	if (!m_App.CoreEngine.BuildMediaViewer(OpenSettings)) {
