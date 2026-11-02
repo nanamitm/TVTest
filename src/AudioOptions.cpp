@@ -648,9 +648,11 @@ bool CAudioOptions::CLatmDownmixOptionsDialog::Show(HWND hwndOwner)
 
 void CAudioOptions::CLatmDownmixOptionsDialog::UpdatePresetEnabled(HWND hDlg)
 {
-	// パススルー (コンボボックスの先頭) ではダウンミックスを行わないので、
-	// プリセットの指定は無効にする
-	const bool fPassthrough = DlgComboBox_GetCurSel(hDlg, IDC_LATMDOWNMIX_CHANNELS) == 0;
+	// 選択肢の並びを変更しても、パススルーの設定値に対してプリセットを無効にする
+	const int Sel = static_cast<int>(DlgComboBox_GetCurSel(hDlg, IDC_LATMDOWNMIX_CHANNELS));
+	const bool fPassthrough = (Sel >= 0)
+		&& (Sel < static_cast<int>(lengthof(ChannelsList)))
+		&& (ChannelsList[Sel] == LATM_DOWNMIX_PASSTHROUGH);
 	EnableDlgItem(hDlg, IDC_LATMDOWNMIX_PRESET, !fPassthrough);
 	EnableDlgItem(hDlg, IDC_LATMDOWNMIX_PRESET_LABEL, !fPassthrough);
 }
@@ -659,9 +661,6 @@ void CAudioOptions::CLatmDownmixOptionsDialog::UpdatePresetEnabled(HWND hDlg)
 INT_PTR CAudioOptions::CLatmDownmixOptionsDialog::DlgProc(
 	HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-	// コンボボックスの並びと設定値の対応
-	static const int ChannelsList[] = {LATM_DOWNMIX_PASSTHROUGH, 8, 6, 2};
-
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{

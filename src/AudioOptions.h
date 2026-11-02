@@ -104,6 +104,9 @@ namespace TVTest
 		private:
 			CAudioOptions *m_pOptions;
 
+			// コンボボックスの並びと設定値の対応
+			static constexpr int ChannelsList[] = {LATM_DOWNMIX_PASSTHROUGH, 8, 6, 2};
+
 			INT_PTR DlgProc(HWND hDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) override;
 			void UpdatePresetEnabled(HWND hDlg);
 		};
