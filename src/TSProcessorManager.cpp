@@ -446,9 +446,13 @@ void CTSProcessorManager::OnTunerChange(LPCTSTR pszOldTuner, LPCTSTR pszNewTuner
 		if (!pTSProcessor->GetGuid(&guid))
 			continue;
 
-		const CTSProcessorSettings *pSettings = GetTSProcessorSettings(guid);
+		CTSProcessorSettings *pSettings = GetTSProcessorSettings(guid);
 		if (pSettings == nullptr)
 			continue;
+
+		// ダイアログで選び直したフィルタは開き直す前のチューナーでの選択のため、
+		// チューナーを開き直す時は設定のフィルタに戻す
+		pSettings->m_fRetryOverride = false;
 
 		const TunerFilterInfo *pOldTunerDecInfo = pSettings->GetTunerFilterInfo(pszOldTuner);
 		const TunerFilterInfo *pNewTunerDecInfo = pSettings->GetTunerFilterInfo(pszNewTuner);
@@ -557,8 +561,17 @@ void CTSProcessorManager::OnNetworkChanged(
 
 void CTSProcessorManager::OpenFilter(
 	CTSProcessor *pTSProcessor, CTSProcessorSettings *pSettings,
-	const FilterInfo &Filter, FilterOpenFlag FilterOpenFlags)
+	const FilterInfo &RequestedFilter, FilterOpenFlag FilterOpenFlags)
 {
+	// ダイアログで選び直したフィルタがある場合、同じ設定のフィルタを開き直す要求
+	// (チャンネル変更時の OnNetworkChanged など) では選び直したフィルタを使う
+	// そうしないと、動作中のフィルタを閉じて失敗した設定のフィルタを開こうとし、
+	// 以降は失敗したフィルタの再試行抑止によりフィルタが開かれないままになる
+	const bool fUseRetryOverride =
+		pSettings->m_fRetryOverride && pSettings->m_RetryRequestedFilter == RequestedFilter;
+	const FilterInfo &Filter =
+		fUseRetryOverride ? pSettings->m_RetrySelectedFilter : RequestedFilter;
+
 	TRACE(
 		TEXT("CTSProcessorManager::OpenFilter() : {} {} {}\n"),
 		Filter.Module, Filter.Device, Filter.Filter);
@@ -638,6 +651,34 @@ void CTSProcessorManager::OpenFilter(
 				pSettings->m_LastOpenFilter.Filter = Dialog.GetFilter();
 				if (pTSProcessor->OpenFilter(Dialog.GetDevice(), Dialog.GetFilter())) {
 					pSettings->m_fLastOpenFailed = false;
+
+					// ダイアログで選んだフィルタを、要求元の設定 (デフォルトまたはチューナー別の設定) へ保存し、
+					// 次回以降のチューナーのオープンやチャンネル変更でも同じフィルタを使うようにする
+					FilterInfo *pSourceFilter = nullptr;
+					if (&RequestedFilter == &pSettings->m_DefaultFilter) {
+						pSourceFilter = &pSettings->m_DefaultFilter;
+					} else {
+						for (TunerFilterInfo &TunerFilter : pSettings->m_TunerFilterMap) {
+							if (static_cast<const FilterInfo *>(&TunerFilter) == &RequestedFilter) {
+								pSourceFilter = &TunerFilter;
+								break;
+							}
+						}
+					}
+
+					if (pSourceFilter != nullptr) {
+						pSourceFilter->Device = pSettings->m_LastOpenFilter.Device;
+						pSourceFilter->Filter = pSettings->m_LastOpenFilter.Filter;
+						pSettings->m_fRetryOverride = false;
+						App.AddLog(
+							TEXT("TSフィルターの設定を \"{}\" : \"{}\" に変更しました。"),
+							pSourceFilter->Device, pSourceFilter->Filter);
+					} else {
+						// 要求元の設定を特定できない場合は、チューナーが変わるまで選んだフィルタを代わりに使う
+						pSettings->m_fRetryOverride = true;
+						pSettings->m_RetryRequestedFilter = RequestedFilter;
+						pSettings->m_RetrySelectedFilter = pSettings->m_LastOpenFilter;
+					}
 					break;
 				}
 			}
