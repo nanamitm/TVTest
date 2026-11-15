@@ -75,6 +75,12 @@ namespace TVTest
 			PropertyList m_PropertyList;
 			FilterInfo m_LastOpenFilter;
 			bool m_fLastOpenFailed = false;
+			// オープンエラーのダイアログで選び直したフィルタ
+			// 設定上のフィルタ (m_RetryRequestedFilter) を開く要求があった時に代わりに使い、
+			// チューナーが変わるまで維持する
+			bool m_fRetryOverride = false;
+			FilterInfo m_RetryRequestedFilter;
+			FilterInfo m_RetrySelectedFilter;
 
 			CTSProcessorSettings(const GUID &guid);
 			const TunerFilterInfo *GetTunerFilterInfo(
