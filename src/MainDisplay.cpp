@@ -149,13 +149,11 @@ bool CMainDisplay::BuildViewer(BYTE VideoStreamType)
 
 	if (!SpatialAudio
 			&& (OpenSettings.LatmDownmixChannels == CAudioOptions::LATM_DOWNMIX_PASSTHROUGH)) {
-		// 24ch PCM を通常の音声デバイスへ直接出しても再生できない場合が多い
-		const bool HasAudioFilter = m_App.AudioOptions.GetAudioFilterName() != nullptr;
+		// 24ch に対応した音声フィルタ・音声デバイス (ASIO 出力など) や、自動的に
+		// 22.2ch 形式で繋がる MPC Audio Renderer もあるため、警告ではなく情報として出す
 		m_App.AddLog(
-			HasAudioFilter ? CLogItem::LogType::Information : CLogItem::LogType::Warning,
-			HasAudioFilter ?
-				TEXT("22.2chパススルー (実験的) が有効です。24ch の PCM をダウンミックスせずに音声フィルタへ渡します。") :
-				TEXT("22.2chパススルー (実験的) が有効ですが、音声フィルタが指定されていません。音声が再生されない可能性があります。"));
+			CLogItem::LogType::Information,
+			TEXT("22.2ch音声はダウンミックスせず 24ch の PCM で出力します。24ch に対応していない音声フィルタ・音声デバイスでは再生されません。"));
 	}
 
 	pViewer->SetAACDecoderType(m_App.AudioOptions.GetAACDecoder());

@@ -665,7 +665,7 @@ INT_PTR CAudioOptions::CLatmDownmixOptionsDialog::DlgProc(
 	case WM_INITDIALOG:
 		{
 			static const LPCTSTR ChannelsTextList[] = {
-				TEXT("22.2chパススルー (実験的)"), TEXT("7.1ch"), TEXT("5.1ch"), TEXT("2ch (ステレオ)")
+				TEXT("ダウンミックスしない (24ch PCM)"), TEXT("7.1ch"), TEXT("5.1ch"), TEXT("2ch (ステレオ)")
 			};
 			int Sel = static_cast<int>(lengthof(ChannelsList)) - 1;
 			for (size_t i = 0; i < lengthof(ChannelsTextList); i++) {
@@ -710,9 +710,10 @@ INT_PTR CAudioOptions::CLatmDownmixOptionsDialog::DlgProc(
 
 			::SetDlgItemText(
 				hDlg, IDC_LATMDOWNMIX_NOTE,
-				TEXT("22.2ch音声を通常の音声デバイスで再生する際の設定です。\r\n")
-				TEXT("音声デバイスに「Windows 空間オーディオ」を選んでいる場合はダウンミックスを行わないため、この設定は使われません。\r\n\r\n")
-				TEXT("「22.2chパススルー」はダウンミックスせず 24ch の PCM を音声フィルタへそのまま渡す実験的な設定です。24ch に対応した音声フィルタを指定していない場合は音が出ないことがあります。")
+				TEXT("22.2ch音声を通常の音声デバイスで再生する際の設定です。")
+				TEXT("「Windows 空間オーディオ」や 22.2ch 対応の MPC Audio Renderer (音声フィルタなし) では自動的に22.2chのまま再生するため、この設定は使われません。\r\n\r\n")
+				TEXT("「ダウンミックスしない」は 24ch の PCM (チャンネルマスクなし) をそのまま音声フィルタ・音声デバイスへ渡します。24ch に対応したもの (多チャンネルの ASIO 出力など) が必要です。チャンネルの並び順は次のとおりです。\r\n")
+				TEXT("FL FR FC LFE BL BR FLC FRC BC SL SR TC TFL TFC TFR TBL TBC TBR LFE2 TSL TSR BFC BFL BFR")
 				);
 		}
 		return TRUE;

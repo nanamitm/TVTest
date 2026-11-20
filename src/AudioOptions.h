@@ -72,9 +72,12 @@ namespace TVTest
 		/*
 			22.2ch 音声を通常の音声デバイスへ出す場合のダウンミックス先。
 			2 / 6 (5.1ch) / 8 (7.1ch) / 0 (LATM_DOWNMIX_PASSTHROUGH) のいずれか。
-			0 はダウンミックスせず 22.2ch (24ch PCM) のまま音声フィルタ等へ渡す
-			(実験的)。Windows 空間オーディオへ出す場合は常に 24ch のまま再生する
-			ため使われない。
+			0 はダウンミックスせず 22.2ch (24ch PCM、チャンネルマスク 0) のまま
+			音声フィルタや音声デバイスへ渡す (多チャンネル ASIO 出力などで 24 本の
+			スピーカーへ出す用途)。並び順は FFmpeg の AV_CHANNEL_LAYOUT_22POINT2
+			(FL FR FC LFE BL BR FLC FRC BC SL SR TC TFL TFC TFR TBL TBC TBR LFE2
+			TSL TSR BFC BFL BFR)。Windows 空間オーディオや 22.2ch 対応の
+			MPC Audio Renderer へ出す場合は自動的に 22.2ch のまま再生するため使われない。
 		*/
 		static constexpr int LATM_DOWNMIX_PASSTHROUGH = 0;
 		int GetLatmDownmixChannels() const { return m_LatmDownmixChannels; }
