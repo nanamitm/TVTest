@@ -141,13 +141,17 @@ HGLOBAL ResizeImage(
 	const int DstXCenter = ((Width - 1) << 8) / 2;
 	const int DstYCenter = ((Height - 1) << 8) / 2;
 
-	for (int x = 0; x < Width; x++) {
-		SrcPos[x] = ((x << 8) - DstXCenter) * SrcWidth / Width + SrcXCenter;
-		if (SrcPos[x] < 0)
-			SrcPos[x] = 0;
-		else if (SrcPos[x] > (SrcWidth - 1) << 8)
-			SrcPos[x] = (SrcWidth - 1) << 8;
-	}
+	// 出力座標 -> 元画像の座標(8bit 固定小数点)
+	// 8K の元画像を FHD 以上に縮小すると int では途中の乗算が桁あふれするため、64bit で計算する
+	const auto MapPos = [](int Dst, int DstCenter, int SrcSize, int DstSize, int SrcCenter) -> int {
+		const long long Pos =
+			((static_cast<long long>(Dst) << 8) - DstCenter) * SrcSize / DstSize + SrcCenter;
+		const long long MaxPos = static_cast<long long>(SrcSize - 1) << 8;
+		return static_cast<int>(std::clamp(Pos, 0LL, MaxPos));
+	};
+
+	for (int x = 0; x < Width; x++)
+		SrcPos[x] = MapPos(x, DstXCenter, SrcWidth, Width, SrcXCenter);
 	const std::size_t SrcRowBytes = DIB_ROW_BYTES(pbmiSrc->bmiHeader.biWidth, pbmiSrc->bmiHeader.biBitCount);
 	const std::size_t DstPadBytes = DIB_ROW_BYTES(Width, 24) - Width * 3;
 	if (SrcTop > 0)
@@ -155,11 +159,7 @@ HGLOBAL ResizeImage(
 			(pbmiSrc->bmiHeader.biHeight > 0 ? (pbmiSrc->bmiHeader.biHeight - (SrcHeight + SrcTop)) : SrcTop) * SrcRowBytes;
 	BYTE *q = static_cast<BYTE*>(pDstData);
 	for (int y = 0; y < Height; y++) {
-		int y1 = ((y << 8) - DstYCenter) * SrcHeight / Height + SrcYCenter;
-		if (y1 < 0)
-			y1 = 0;
-		else if (y1 > (SrcHeight - 1) << 8)
-			y1 = (SrcHeight - 1) << 8;
+		const int y1 = MapPos(y, DstYCenter, SrcHeight, Height, SrcYCenter);
 		const int dy2 = y1 & 0xFF;
 		const int dy1 = 0x100 - dy2;
 		const std::size_t YOffset = dy2 > 0 ? SrcRowBytes : 0;
