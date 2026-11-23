@@ -23,6 +23,7 @@
 #include <memory>
 #include <cmath>
 #include <numbers>
+#include <cstdint>
 #include "ImageResize.h"
 #include "ImageUtil.h"
 
@@ -155,8 +156,9 @@ bool Averaging(
 			ex = XScaleTable[x];
 			const int bx1 = bx >> 8;
 			const int ex1 = (ex + 255) >> 8;
-			unsigned int r = 0, g = 0, b = 0;
-			int Divisor = 0;
+			// Large reductions can accumulate more than 32 bits of weighted pixels.
+			std::uint64_t r = 0, g = 0, b = 0;
+			std::uint64_t Divisor = 0;
 			const BYTE *pSrcRow = pSrcBits + (by1 * SrcStride) + (bx1 * SrcPlanes);
 
 			for (int y1 = by1; y1 < ey1; y1++) {
@@ -173,7 +175,7 @@ bool Averaging(
 						XWeight -= bx & 0xFF;
 					if (x1 == ex1 - 1)
 						XWeight = (XWeight * (((ex - 1) & 0xFF) + 1)) >> 8;
-					int Weight = XWeight * YWeight;
+					const auto Weight = static_cast<std::uint64_t>(XWeight) * YWeight;
 					if (Weight > 0) {
 						b += p[0] * Weight;
 						g += p[1] * Weight;
@@ -240,7 +242,7 @@ bool GenericResample(
 			WeightTable[i] /= Weight;
 
 		const BYTE *p = pSrcBits + (x1 * SrcPlanes);
-		BYTE *q = Buffer.get() + (x * DstPlanes);
+		BYTE *q = Buffer.get() + (x * 3);
 
 		for (int y = 0; y < SrcHeight; y++) {
 			double r = 0.0, g = 0.0, b = 0.0;
